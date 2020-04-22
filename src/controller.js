@@ -122,7 +122,7 @@ const Controller = async (canvasref,canvasstatic,token,userid,CopyLink,LeaveGame
       })
 
       socket.on('End Game',(winner)=>{
-            view.activateEndGame(model.players[winner].name)
+            view.activateEndGame(model.players[winner].username)
       })
 
       socket.on('Choose Color',async ()=>{
