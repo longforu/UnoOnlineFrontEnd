@@ -55,6 +55,114 @@ const View = class{
     this.configureUnoMessage()    
     this.drawColorChoser()
     this.drawSpecialInfo()
+    this.drawEmote()
+    this.drawAddBot()
+    this.drawTutorial()
+    this.drawEndGame()
+  }
+
+  drawEndGame(){
+    const endGame = this.app.addObject({display:false,x:this.app.canvas.width/2,y:this.app.canvas.height/2 - 50*pd,zIndex:100000000})
+    endGame.addShape({kind:'roundedRectangle',color:'#ffffed',w:700,h:200,border:true,borderWidth:10,borderColor:'black',borderRadius:20,shadow:{color:'black',offsetX:5,offsetY:-5,blur:10}})
+    const text = endGame.addShape({kind:'text',text:'Someone had won the game!',font:'40px Arial Bold',y:-10})
+    this.activateEndGame = (name)=>{
+      text.text = `🎉 ${name} had won the game! 🎉`
+      endGame.updateVisual()
+      endGame.display = true
+    }
+  }
+
+  drawTutorial(){
+    const tutorial = this.app.addStorage({display:true,x:this.app.canvas.width/2,y:this.app.canvas.height/2 - 50*pd,zIndex:100000,direction:'column',spacing:5,})
+    tutorial.addShape({kind:'roundedRectangle',color:'#ffffed',w:750,h:750,border:true,borderWidth:10,borderColor:'black',borderRadius:20,shadow:{color:'black',offsetX:5,offsetY:-5,blur:10}})
+    const x = tutorial.addShape({kind:'img',spriteLink:'assets/crossIcon.png',drawWidth:50,x:320,y:-320})
+    x.pressedEvent(()=>tutorial.display = false)
+    tutorial.model = [
+      '🎉 Welcome to Uno Online! 🎉',
+      'Some quick pointers:',
+      '👈 Use "Copy Link" from the left to automatically',
+      'get a link you can send to your friends!',
+      '👉 You can start the game when at least 2 players ',
+      '(including bots) are present. The panel on the left',
+      'show you who is in the game.',
+      '👇 You can use the emote panel below to piss', 
+      'off your friends when playing.',
+      "👏 And that is it! If you have any feedback",
+      "please 📧 me at vietlongali@gmail.com",
+      "Have fun!",
+      "Love this app? Buy me a beer on ",
+      'Venmo @LongTran123'
+    ]
+    tutorial.elementFunction = (content)=>{
+      const shape = tutorial.addShape({kind:'text',font:'30px Arial Bold',text:content})
+      shape.x = -340 + 0.5*shape.width
+      return shape
+    }
+    tutorial.updateToModel()
+    this.showTutorial = ()=>tutorial.display = true
+  }
+
+  drawAddBot(){
+    const addBot = this.app.addObject({display:false,x:this.positionReference.leaderBoard[0],y:this.positionReference.leaderBoard[1] + 100*pd})
+    const text = addBot.addShape({kind:'text',font:'35px Arial Bold',text:'Add Bot 🤖',})
+    let resolveFunction = ()=>{}
+    text.hoverEvent(()=>{
+      text.color = 'yellow'
+      addBot.updateVisual()
+    },()=>{
+      text.color = 'black'
+      addBot.updateVisual()
+    })
+    text.pressedEvent(()=>resolveFunction())
+    this.startAddBot = (func)=>{
+      resolveFunction = func
+      addBot.display = true
+    }
+    this.cancelAddBot = ()=>{
+      addBot.display = false
+    }
+  }
+
+  drawEmoteChooser(func){
+    const emoteChooser = this.app.addStorage({x:250*pd,y:470*pd,spacing:-15,zIndex:-1})
+    emoteChooser.addShape({kind:'roundedRectangle',color:'white',w:370*pd,h:40*pd,borderRadius:10*pd,border:true,borderColor:'black',borderWidth:5,shadow:{color:'black',offsetX:5,offsetY:-5,blur:10}})
+    emoteChooser.model = ['Emote:','💖','😡','👋','😂','😈','💩']
+    emoteChooser.elementFunction = (content,index)=>{
+      if(!index) return emoteChooser.addShape({kind:'text',text:content,font:'35px Arial Bold'})
+      const shape = emoteChooser.addShape({kind:'text',text:content,font:'35px Arial Bold'})
+      shape.hoverEvent(()=>{
+        shape.font = '50px Arial Bold';
+        emoteChooser.updateVisual()
+      },()=>{
+        shape.font = '30px Arial Bold';
+        emoteChooser.updateVisual()
+      })
+      shape.pressedEvent(()=>func(content))
+      return shape
+    }
+    emoteChooser.updateToModel()
+  }
+
+  drawEmote(){
+    const emoteText = this.app.addObject({display:false,x:this.app.canvas.width/2,y:this.app.canvas.height/2 - 170*pd,zIndex:1000})
+    const text = emoteText.addShape({kind:'text',text:"Someone emote something",font:'60px Arial Bold',color:'green'})
+    emoteText.addShape({kind:'roundedRectangle',w:this.app.canvas.width,h:100,display:false})
+    let timeInterval = null
+    
+    this.emote = (name,color,emoji)=>{
+      clearInterval(timeInterval)
+      text.text = `${name} emote ${emoji}`
+      text.color = color
+      emoteText.updateVisual()
+      emoteText.display = true
+      text.opacity = 0
+      text.addAnimation('opacity',1,100,()=>{timeInterval = setTimeout(()=>{
+        text.addAnimation('opacity',0,100,()=>{
+          emoteText.display = false
+        })
+        },1000)
+      })
+    }
   }
 
   animatePlayerPlay = (content)=>this.animatePlay(content,...this.positionReference.playerDeck)
@@ -117,7 +225,7 @@ const View = class{
 
   createActionPanel(actionFunction){
     const actionalPanel = this.app.addStorage({x:100*pd,y:279*pd,spacing:20,direction:'column'})
-    actionalPanel.addShape({kind:'roundedRectangle',w:120*pd,h:150*pd,borderRadius:10*pd,color:'white',shadow:{color:'black',offsetX:5,offsetY:-5,blur:10},border:true,borderWidth:5,borderColor:'black'})
+    actionalPanel.addShape({kind:'roundedRectangle',w:120*pd,h:150*pd,borderRadius:10*pd,color:'#ffffed',shadow:{color:'black',offsetX:5,offsetY:-5,blur:10},border:true,borderWidth:5,borderColor:'black'})
     actionalPanel.addShape({kind:'text',font:'32px Futura',text:"Actions:",y:-60*pd})
     actionalPanel.model = ['Copy Link','Leave Game','Restart Game']
     actionalPanel.elementFunction = (link)=>{
@@ -137,7 +245,7 @@ const View = class{
 
   createLeaderboard(){
     const leaderBoard = this.staticApp.addStorage({x:700*pd,y:279*pd,spacing:10,direction:'column'})
-    leaderBoard.addShape({kind:'roundedRectangle',w:120*pd,h:150*pd,borderRadius:10*pd,color:'white',shadow:{color:'black',offsetX:5,offsetY:-5,blur:10},border:true,borderWidth:5,borderColor:'black'})
+    leaderBoard.addShape({kind:'roundedRectangle',w:120*pd,h:150*pd,borderRadius:10*pd,color:'#ffffed',shadow:{color:'black',offsetX:5,offsetY:-5,blur:10},border:true,borderWidth:5,borderColor:'black'})
     leaderBoard.addShape({kind:'text',font:'32px Futura',text:"Turn Board:",y:-60*pd})
     const turnIndicator = this.app.addObject({display:false})
     turnIndicator.addShape({x:85*pd,kind:'poly',specialPolygon:true,numberOfSide:3,color:'yellow',radius:10*pd,rotation:180})
@@ -302,7 +410,7 @@ const View = class{
   }
 
   drawAnnouncement(){
-      let animationDuration = 500
+      let animationDuration = 100
 
       this.announcementQueue = []
       this.announcmentPerpetual = []
