@@ -4,10 +4,11 @@
     <meta charset="utf-8" />
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="ScreenOrientation" content="autoRotate:disabled">
     <meta name="theme-color" content="#000000" />
     <meta
       name="description"
-      content="Web site created using create-react-app"
+      content="Play One, an alternative of Uno online with your friends right in the browser."
     />
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <!--
@@ -30,7 +31,16 @@
       window.location.protocol = "https";
       }
       </script>
-    <title>Uno Online</title>
+      <!-- Global site tag (gtag.js) - Google Analytics -->
+      <script async src="https://www.googletagmanager.com/gtag/js?id=G-9YH5E0PWQB"></script>
+      <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'G-9YH5E0PWQB');
+      </script>
+    <title>One - An alternative to Uno</title>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>

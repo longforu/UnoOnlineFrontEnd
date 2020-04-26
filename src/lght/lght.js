@@ -21,12 +21,17 @@ lght.defaultAppConfig = {
     lastFrame:undefined,
     constantRender:true,
     background:"black",
-    pixelDensity:1
+    pixelDensity:1,
+    eventListeners:[],
+    eventListenersFunction:[]
 }
 
 lght.defaultObjectProps = {
     shapes:[],
     animations:[],
+    behaviors:[],
+    behaviorFuncs:[],
+    behaviorQueue:[],
     hoverEvents:[],
     animationCount:0,
     initFunctions:["createPreloader"],
@@ -36,13 +41,28 @@ lght.defaultObjectProps = {
     positionIndicator:false,
     display:true,opacity:1,
     mouseUpEvent:[],mouseDownEvent:[],mouseMoveEvent:[],
-    zIndex:0
+    zIndex:0,
+    alignX:false,
+    alignDirectionX:'right',
+    alignMarginX:5,
+    alignY:false,
+    alignDirectionY:'top',
+    alignMarginY:5
 }
 
 lght.defaultStorageProps = {
     spacing:0,
     direction:'row',
-    model:[]
+    model:[],
+    margin:0
+}
+
+lght.defaultAdvanceStorageProps = {
+    paddingTop:10,
+    paddingBottom:10,
+    paddingLeft:10,
+    paddingRight:10,
+    backgroundFunction:null
 }
 
 lght.defaultShapeOptions = {
@@ -71,9 +91,11 @@ lght.defaultArcOptions = {
 }
 
 lght.defaultTextOptions = {
-    textAlign:'left',
-    font:'10px Ariel',
-    text:'Hello World'
+    textAlign:'center',
+    fontFamily:'Arial Bold',
+    fontSize:10,
+    text:'Hello World',
+    fontBackwardCompatibility:undefined
 }
 
 lght.defaultImgOptions = {
@@ -126,6 +148,8 @@ lght.app = function(elem,options) {
     this.options = {};
     mergeDefaultPropertyObject(options,lght.defaultAppConfig,this.options)        
     this.canvas = elem;
+    this.eventListeners = []
+    this.eventListenersFunction = []
     this.options.initFunctions.forEach((e)=>this[e]())
     
     this.objects = []
@@ -138,6 +162,16 @@ lght.app.prototype.turnFunctions = (obj)=>{
     obj.options.animateFunctions.forEach((e)=>obj[e]())
 }
 
+lght.app.prototype.addEventListener =function(event,func){
+    this.eventListeners.push(event)
+    this.eventListenersFunction.push(func)
+    this.canvas.addEventListener(event,func)
+}
+
+lght.app.prototype.removeEventListenr = function(){
+    this.eventListeners.forEach((e,i)=>this.canvas.removeEventListener(e,this.eventListenersFunction[i]))
+}
+
 lght.app.prototype.kill = function(){
     this.objects.forEach(e=>{
         e.shapes.forEach(f=>f.kill())
@@ -146,7 +180,7 @@ lght.app.prototype.kill = function(){
     this.killed = true
     lght.gameloop.list.splice(this.index,1)
     lght.apps.splice(this.index,1)
-    
+    this.removeEventListenr()
 }
 
 lght.app.prototype.update = function(){
@@ -157,15 +191,17 @@ lght.app.prototype.update = function(){
 
 lght.app.prototype.translateMouseCoor = function(e){
 	var x;
-	var y;
+    var y;
 	if (e.pageX || e.pageY) { 
 		x = e.pageX;
 		y = e.pageY;
 	}
 	else { 
-		x = e.clientX + document.body.scrollLeft + document.documentElement.scrollLeft; 
-		y = e.clientY + document.body.scrollTop + document.documentElement.scrollTop; 
-	} 
+		x = e.clientX + document.body.scrollLeft + document.documentElement.scrollLeft
+        y=e.clientX + document.body.scrollTop + document.documentElement.scrollTop
+    } 
+    if(this.canvas.parentElement.scrollLeft && this.canvas.style.position !== 'fixed') x+=this.canvas.parentElement.scrollLeft
+    if(this.canvas.parentElement.scrollTop && this.canvas.style.position !== 'fixed') x+=this.canvas.parentElement.scrollTop
 	x -= this.canvas.offsetLeft;
 	y -= this.canvas.offsetTop;
 	return [x*this.pixelDensity,y*this.pixelDensity];
@@ -187,7 +223,79 @@ lght.object = class {
         this.initFunctions.forEach((e)=>this[e]())        
         this.name = (property.objectName)?property.objectName:`Object ${this.id}`
     }
+
+    translateToRealPixel = (num,extraInfo)=>{
+        if(num.match(/%/)) return (parseInt(num.split('').filter(e=>e!=='%').join(''))/100) * extraInfo
+        return parseInt(num)
+    }
+
+    changePosition(x,y){
+        if(x){
+            if(this.alignX){
+                let coeff = (this.alignDirectionX === 'left' || this.alignDirectionX === 'center')?1:-1
+                this.alignMarginX = x - coeff*this.posX
+            }
+            else this.x = x
+        }
+        if(y){
+            if(this.alignY){
+                let coeff = (this.alignDirectionY==='top' || this.alignDirectionY==='center')?1:-1
+                this.alignMarginY = y - coeff*this.posY
+            }
+            else this.y = y
+        }
+    }
+
+    get posX(){
+        if(this.alignX){
+            let base
+            if(this.alignDirectionX === 'left') base = 0
+            else if(this.alignDirectionX === 'right') base = this.parent.canvas.width
+            else base = this.parent.canvas.width/2
+            const coeff = (this.alignDirectionX === 'left' || this.alignDirectionX === 'center')?1:-1
+            return base + coeff*(this.alignMarginX)
+        }
+        if(typeof this.x === 'number') return this.x
+        const arr = this.x.split(' ')
+        if(arr.length === 1) return this.translateToRealPixel(arr[0],this.parent.canvas.width)
+        else{
+            let i = 0
+            while(i<arr.length){
+                if(arr[i] === '+' || arr[i] === '-'){
+                    const coeff = (arr[i] === '+') ? 1 : -1
+                    arr[i] = this.translateToRealPixel(arr.splice(i+1,1),this.parent.canvas.width) + coeff*this.translateToRealPixel(arr.splice(i-1,1),this.parent.canvas.width)
+                }
+                else i++
+            }
+        }
+        return arr[0]
+    }
     
+    get posY(){
+        if(this.alignY){
+            let base
+            if(this.alignDirectionY === 'top') base = 0
+            else if(this.alignDirectionY==='bottom') base = this.parent.canvas.height
+            else base = this.parent.canvas.height/2
+            const coeff = (this.alignDirectionY==='top' || this.alignDirectionY==='center')?1:-1
+            return base + coeff*( this.alignMarginY)
+        }
+        if(typeof this.y === 'number') return this.y
+        const arr = this.y.split(' ')
+        if(arr.length === 1) return this.translateToRealPixel(arr[0],this.parent.canvas.height)
+        else{
+            let i = 0
+            while(i<arr.length){
+                if(arr[i] === '+' || arr[i] === '-'){
+                    const coeff = (arr[i] === '+') ? 1 : -1
+                    arr[i] = this.translateToRealPixel(arr.splice(i+1,1),this.parent.canvas.height) + coeff*this.translateToRealPixel(arr.splice(i-1,1),this.parent.canvas.height)
+                }
+                else i++
+            }
+        }
+        return arr[0]
+    }
+
     kill(){
         this.parent.objects.splice(this.parent.objects.indexOf(this),1)
     }
@@ -223,7 +331,23 @@ lght.object = class {
     findThePositionThatIsRelativeToThisObjectFromAbsolutePosition(x,y){
         return [x-this.x,y-this.y]
     }
+
+    get w(){
+        return this.findMax()[1] - this.findMax()[0]
+    }
+    get h(){
+        return this.findMax()[3] - this.findMax(2)
+    }
 }
+
+lght.templateNames = []
+lght.templates = []
+lght.template = (name,func)=>{
+    lght.templateNames.push(name)
+    lght.templates.push(func)
+}
+
+lght.app.prototype.useTemplate = (name,model)=> lght.templates[lght.templateNames.indexOf(name)](model,this)
 
 lght.storage = class extends lght.object{
     constructor(property,parent){
@@ -233,6 +357,28 @@ lght.storage = class extends lght.object{
         this.model = property.model || []
         this.elementFunction = property.elementFunction || null
         this.updateToModel()
+    }
+    get totalLength(){
+        if(!this.model.length) return 0
+        if(!this.elementFunction) return 0
+        let shape
+        switch(this.direction){
+            case 'row-reverse':
+            case 'row':
+                shape = this.elementFunction(this.model[0],0)
+                const w = shape.width
+                shape.kill()
+                return w*this.model.length + this.spacing*(this.model.length-1)
+            case 'column-reverse':
+            case 'column':
+                shape = this.elementFunction(this.model[0],0)
+                const h = shape.height
+                shape.kill()
+                return h*this.model.length + this.spacing*(this.model.length-1)
+            default:
+                return 0
+                break;
+        }
     }
     updateToModel(){
         let model =[...this.model]
@@ -250,7 +396,7 @@ lght.storage = class extends lght.object{
                 const w = shape.width
                 shape.kill()
                 totalLength = w*model.length + this.spacing*(model.length-1)
-                const firstX = -totalLength/2 + 0.5*w
+                const firstX = -totalLength/2 + 0.5*w + this.margin
                 model.forEach((content,i)=>{
                     const shape = this.elementFunction(content,i)
                     this.storageShapes.push(shape)
@@ -264,7 +410,7 @@ lght.storage = class extends lght.object{
                 const h = shape.height
                 shape.kill()
                 totalLength = h*model.length + this.spacing*(model.length-1)
-                const firstY = -totalLength/2 + 0.5*h
+                const firstY = -totalLength/2 + 0.5*h - this.margin
                 model.forEach((content,i)=>{
                     const shape = this.elementFunction(content,i)
                     this.storageShapes.push(shape)
@@ -275,7 +421,38 @@ lght.storage = class extends lght.object{
                 break;
         }
         this.updateVisual()
+        return this
+    }
+}
 
+lght.advanceStorage = class extends lght.storage{
+    constructor(property,parent){
+        super(property,parent)
+        mergeDefaultPropertyObject(property,lght.defaultAdvanceStorageProps,this)
+        this.updateToModel()
+    }
+
+    updateToModel(){
+        super.updateToModel()
+        if(!this.backgroundFunction) return
+        this.backgroundShape = this.backgroundFunction()
+        let h,w
+        if(this.direction.match(/column/)){
+            h = this.totalLength
+            w = Math.max(...this.storageShapes.map(e=>e.w))
+        }
+        else{
+            w = this.totalLength
+            h = Math.max(...this.storageShapes.map(e=>e.h))
+        }
+        this.backgroundShape.h = h + this.paddingBottom + this.paddingTop
+        this.backgroundShape.w = w + this.paddingLeft + this.paddingRight
+        this.backgroundShape.x += this.paddingRight - this.paddingLeft
+        this.backgroundShape.y += this.paddingTop - this.paddingBottom
+        this.shapes.splice(this.shapes.length-1,1)
+        this.shapes.unshift(this.backgroundShape)
+        this.updateVisual()
+        return this
     }
 }
 
@@ -306,8 +483,92 @@ lght.sprite = (link,func)=> {
     }
 }
 
+lght.sound = class{
+    constructor(link,loop){
+        this.elem = document.createElement('audio')
+        this.elem.oncanplaythrough = ()=>{
+            this.loaded = true
+            this.updateQueue()
+        }
+        this.elem.loop = loop
+        this.elem.volume = 0.2
+        this.elem.src = link
+        this.elem.setAttribute('preload','auto')
+        this.elem.setAttribute('controls','none')
+        this.elem.style.display = 'none'
+        document.body.appendChild(this.elem)
+        this.queue = 1
+        this.running = false
+        this.loaded = false
+    }
+    updateQueue(){
+        if(!this.running && this.queue && this.loaded && !lght.mute){
+            this.running = true
+            this.elem.play()
+            setTimeout(()=>{
+                this.running = false
+                this.updateQueue()
+            },this.elem.duration + 300)
+            this.queue--
+        }
+    }
+    addToQueue(){
+        this.queue++
+        this.updateQueue()
+    }
+}
+
+lght.audioReference = []
+lght.audioLinkReference = []
+lght.playSound = (src,loop)=>{
+    if(lght.audioLinkReference.indexOf(src)<0){
+        const sound = new lght.sound(src,loop)
+        lght.audioReference.push(sound)
+        lght.audioLinkReference.push(sound)
+    }
+    else lght.audioReference[lght.audioLinkReference.indexOf(src)].addToQueue()
+}
+lght.stopAll = ()=>{
+    Array.from(document.getElementsByTagName('audio')).forEach(e=>{
+        e.pause()
+    })
+}
+lght.muteAll = ()=>{
+    lght.mute = true
+    lght.stopAll()
+    Array.from(document.getElementsByTagName('audio')).forEach(e=>e.mute=true)
+}
+lght.unmuteAll = ()=>{
+    lght.mute = false
+    lght.stopAll()
+    Array.from(document.getElementsByTagName('audio')).forEach(e=>e.mute=false)
+    lght.audioReference.forEach(e=>{if(e.elem.loop) e.addToQueue()})
+}
+
+lght.component = class {
+    constructor(object){
+        if(!lght.components) lght.components = {}
+        if(!object.name) throw Error("Component must have name")
+        lght.components[object.name] = object
+    }
+    static addComponent(name,property={},object){
+        let option = {...lght.components[name]}
+        for(let prop in property)(option[prop] = property[prop])
+        return new lght[option.kind](option,object)
+    }
+}
+
+lght.addComponent = (property) => new lght.component(property)
+
+lght.classes = {}
+lght.addClass = (name,options)=>lght.classes[name] = options
+
 lght.shape = class {
     constructor (property,parent) {
+        if(property.class) for(let className of property.class.split(' ')) for(let attr in lght.classes[className] || {}){
+            if(property.importantAttr) if(property.importantAttr.split(' ').includes(attr)) continue
+            property[attr] = lght.classes[className][attr]
+        }
         this.kind = property.kind
         this.parent = parent;
         this.parent.shapes.push(this);
@@ -323,11 +584,11 @@ lght.shape = class {
     }
 
     get absoluteX(){
-        return this.x + this.parent.x
+        return this.x + this.parent.posX
     }
 
     get absoluteY(){
-        return this.y + this.parent.y
+        return this.y + this.parent.posY
     }
 
     get hasBorder(){
@@ -691,6 +952,11 @@ lght.text = class extends lght.shape{
     constructor (property,parent){
         super(property,parent)
         mergeDefaultPropertyObject(property,lght.defaultTextOptions,this)
+        if(property.font) this.fontBackwardCompatibility = property.font
+    }
+    
+    get font(){
+        return this.fontBackwardCompatibility || `${this.fontSize}px ${this.fontFamily}`
     }
 
     get textSize(){
@@ -712,7 +978,13 @@ lght.text = class extends lght.shape{
     }
 
     findVertex(){
-        let reference = [[1,-1],[-1,-1],[-1,0.5],[1,0.5]]
+        let reference
+        let coefficient = 1
+        if(this.textAlign === 'center') reference = [[1,-1],[-1,-1],[-1,0.8],[1,0.8]]
+        else{
+            if(this.textAlign === 'right') coefficient = -1
+            reference = [[2,-1],[0,-1],[0,0.8],[2,0.8]].map(e=>[e[0]*coefficient,e[1]])
+        }
         let result = []
         reference.forEach(([rx,ry])=>{
             let nx = this.absoluteX + 0.5*this.width*rx
@@ -807,15 +1079,46 @@ lght.shape.prototype.enterCursorEvent = function(){
     this.hoverEvent(()=>this.parent.parent.startCursor(),()=>this.parent.parent.endCursor())
 }
 
-lght.app.prototype.mouseInputInit = function(){
-    const attachEvent = (e,event)=>{
+lght.app.prototype.attachEvent = function(event,func){
+    const mobile = window.mobileCheck()
+    let trueEvent = event
+    if(mobile){
+        switch(trueEvent){
+            case 'mousedown':
+                trueEvent = 'touchstart'
+                break
+            case 'mouseup':
+                trueEvent='touchend'
+                break
+            case 'mousemove':
+                trueEvent='touchmove'
+                break
+            default:
+                break;
+        }
+    }
+    this.addEventListener(trueEvent,(e)=>{
         if(this.killed) return 
+        if(window.mobileCheck()){
+            Array.from(e.changedTouches).forEach(touch=>{
+                const [x,y] = this.translateMouseCoor(touch)
+                func(x,y)
+            })
+            return
+        }
         const [x,y] = this.translateMouseCoor(e)
+        func(x,y)
+    })
+}
+
+lght.app.prototype.mouseInputInit = function(){
+    const handleCoor = (x,y,event)=>{
         if(this.objects.length === 0) return
         for (let i = this.objects.length;i--;i>=0){
             const obj = this.objects[i]
             if(obj[event].length === 0) continue
             if(!obj.display) continue
+
             if(obj.pointInObject(x,y)){
                 for(let func of obj[event])( func(x,y))
                 break;
@@ -837,15 +1140,16 @@ lght.app.prototype.mouseInputInit = function(){
         }
     }
 
-    this.canvas.addEventListener('mouseup',(e)=>attachEvent(e,'mouseUpEvent'))
-    this.canvas.addEventListener('mousemove',(e)=>attachEvent(e,'mouseMoveEvent'))
-    this.canvas.addEventListener('mousedown',(e)=>attachEvent(e,'mouseDownEvent'))
+    this.attachEvent('mouseup',(x,y)=>handleCoor(x,y,'mouseUpEvent'))
+    this.attachEvent('mousemove',(x,y)=>handleCoor(x,y,'mouseMoveEvent'))
+    this.attachEvent('mousedown',(x,y)=>handleCoor(x,y,'mouseDownEvent'))
 }
 
 //PRESS EVENT FOR AN APP
 lght.object.prototype.pressedEvent = function (func) {
     this.enterCursorEvent()
     this.mouseUpEvent.push(func)
+    return this
 }
 
 //MAKE AN OBJECT DRAGGABLE
@@ -858,27 +1162,26 @@ lght.object.prototype.makeDraggable = function (func,funcDone) {
         if(obj.draggable){
             if(!obj.onDrag){
                 obj.onDrag = true;
-                rx = x - obj.x; ry = y - obj.y;
+                rx = x - obj.posX; ry = y - obj.posY;
             }
         }
     })
 
-    document.addEventListener('mousemove', (e) => {
-        var c = this.parent.translateMouseCoor(e);
+    this.parent.attachEvent('mousemove', (...c) => {
         if(c[0] < 0 || c[0] >this.parent.canvas.width || c[1] < 0 || c[1] > this.parent.canvas.height) obj.onDrag = false
         if(obj.onDrag){
-            obj.x = c[0] - rx; obj.y = c[1] - ry;
-            obj.updateVisual();
+            this.changePosition(c[0] - rx,c[1] - ry)
             if(typeof func == 'function') func(obj);
         }
     })
 
-    this.parent.canvas.addEventListener('mouseup', (e) => {
+    this.parent.attachEvent('mouseup', (e) => {
         if(obj.onDrag){
             obj.onDrag = false;
             if(funcDone) funcDone()
         }
     })
+    return this
 }
 
 //HOVER EVENT
@@ -887,14 +1190,12 @@ lght.object.prototype.hoverEvent = function (funcin,funcout)  {
     this.hoverEvents.push([funcin,funcout])
     if(this.hoverEvents.length === 1){
         this.enterCursorEvent()
-        document.addEventListener('mousemove', (e)=>{
-            var c = this.parent.translateMouseCoor(e);
+        this.parent.attachEvent('mousemove', (...c)=>{
             if(c[0] < 0 || c[0] >this.parent.canvas.width || c[1] < 0 || c[1] > this.parent.canvas.height){
                 obj.mouseIn = false;
                 for(let event of this.hoverEvents){
                     if(event[1]) event[1]() 
                 }
-                obj.updateVisual()
                 return;
             }
             var touch = obj.pointInObject(c[0],c[1]);
@@ -903,7 +1204,6 @@ lght.object.prototype.hoverEvent = function (funcin,funcout)  {
                 for(let event of this.hoverEvents){
                     if(event[1]) event[1]() 
                 }
-                obj.updateVisual()
             }
             
         })
@@ -913,10 +1213,10 @@ lght.object.prototype.hoverEvent = function (funcin,funcout)  {
                 for(let event of this.hoverEvents){
                     if(event[0]) event[0]() 
                 }
-                obj.updateVisual()
             }
         })
     }
+    return this
 }
 
 //INPUT FOR SHAPES
@@ -934,6 +1234,7 @@ lght.object.prototype.attachQuickMovement = function (velocity,cooldown,func) {
             }
         }
     })
+    return this
 }
 
 //<--------------MOUSE INPUT GO HERE---------------------->
@@ -942,6 +1243,7 @@ lght.object.prototype.attachQuickMovement = function (velocity,cooldown,func) {
 lght.shape.prototype.pressedEvent = function (func) {
     this.enterCursorEvent()
     this.mouseUpEvent.push(func)
+    return this
 }
 
 //HOVER EVENT
@@ -950,9 +1252,8 @@ lght.shape.prototype.hoverEvent = function (funcin,funcout)  {
     this.hoverEvents.push([funcin,funcout])
     if(this.hoverEvents.length === 1){
         this.enterCursorEvent()
-        document.addEventListener('mousemove', (e)=>{
+        this.parent.parent.attachEvent('mousemove', (...c)=>{
             if(!this.display) return
-            var c = this.parent.parent.translateMouseCoor(e);
             if(c[0] < 0 || c[0] >this.parent.parent.canvas.width || c[1] < 0 || c[1] > this.parent.parent.canvas.height){
                 obj.mouseIn = false; 
                 for(let event of this.hoverEvents){
@@ -981,6 +1282,7 @@ lght.shape.prototype.hoverEvent = function (funcin,funcout)  {
             }
         })
     }
+    return this
 }
 
 //Animation
@@ -1001,10 +1303,13 @@ const addAnimation = function(property,value,time,func){
     let id = this.animationCount;
 
     let timeout = setTimeout(()=>{
+        console.log(property,this,value)
         changeByDotNotation(property,this,value)
         this.cancelAnimation(id)
         if(this.parent.static !== undefined) this.parent.static = true
         else this.static = true
+        if(this.updateVisual) this.updateVisual()
+        else this.parent.updateVisual()
         if(func) func();
     },time)
 
@@ -1012,12 +1317,14 @@ const addAnimation = function(property,value,time,func){
     if(alreadyAnimated){
         this.cancelAnimation(alreadyAnimated[6])
     }
-    if(property !== 'x' && property !== 'y'){
-        if(this.parent.static !== undefined) this.parent.static = false
-        else this.static = false
-    }
+    if(this.parent.static !== undefined) this.parent.static = false
+    else this.static = false
     this.animations.push([property,value,getByDotNotation(property,this),time,timeout,func,id]);
-    return id;
+    return this;
+}
+
+const awaitAnimation = function(property,value,time){
+    return new Promise(r=>this.addAnimation(property,value,time,r))
 }
 
 const cancelAnimation = function(){
@@ -1041,10 +1348,15 @@ const animate = function (time){
     })
 }
 
+const fadeIn = function(time){return new Promise(r=>this.addAnimation('opacity',1,time,r))}
+const fadeOut = function(time){return new Promise(r=>this.addAnimation('opacity',0,time,r))}
+
 lght.animateFunctionReference = {
     animate,
     addAnimation,
     cancelAnimation,
+    fadeIn,
+    fadeOut
 }
 
 for(var prop in lght.animateFunctionReference){
@@ -1095,10 +1407,10 @@ lght.app.prototype.renderPositions = function(){
     this.context.save();
     this.context.fillStyle = 'red';
 
-    this.objects.forEach(({x,y,positionIndicator}) => {
+    this.objects.forEach(({posX,posY,positionIndicator}) => {
         if(!positionIndicator) return
         this.context.beginPath()
-        this.context.arc(x,y,5,0,2*Math.PI)
+        this.context.arc(posX,posY,5,0,2*Math.PI)
         this.context.closePath()
         this.context.fill()
     });
@@ -1142,8 +1454,8 @@ lght.object.prototype.createPreloader = function(){
     this.preloader.width = maxX-minX;
     this.preloader.height = maxY-minY;
 
-    this.preloader.ox = this.x - minX;
-    this.preloader.oy = this.y - minY;
+    this.preloader.ox = this.posX - minX;
+    this.preloader.oy = this.posY - minY;
 
     this.preloader.context = this.preloader.getContext('2d');
 
@@ -1168,8 +1480,9 @@ lght.object.prototype.drawPreloader = function(){
 //<------------------SHAPE DRAWING FUNCTION---------------->
 lght.object.prototype.draw = function(){
     if(!this.display) return
+    if(this.static) return this.drawPreloader()
     this.shapes.forEach(s=>{
-        lght.drawShape(this.parent.context,this.x+s.x,this.y+s.y,s)
+        lght.drawShape(this.parent.context,this.posX+s.x,this.posY+s.y,s)
     })
 }
 
@@ -1301,11 +1614,14 @@ lght.drawArc = function(c,rad,arcDegree,rotation,stroke){
 //DRAWING TEXT
 
 lght.drawText = function(c,text,font,stroke,textAlign,width,height,rotation){
-    c.textAlign = textAlign;
     c.font = font;
     c.rotate(degToRad(360-rotation))
-    if(stroke) c.fillText(text,~~(-width/2 +  0.5),~~(height/3.5 + 0.5));
-    else c.fillText(text,~~(-width/2 + 0.5),~~(height/3.5 + 0.5))
+    let x
+    if(textAlign === 'center') x = ~~(-width/2 +  0.5)
+    else if(textAlign==='left') x = 0
+    else x=~~(-width + 0.5)
+    if(stroke) c.strokeText(text,x,~~(height/3.5 + 0.5));
+    else c.fillText(text,x,~~(height/3.5 + 0.5))
 }
 
 //DRAWING IMAGES
@@ -1340,12 +1656,26 @@ lght.object.prototype.addShape = function (property) {
     return shape
 }
 
+lght.object.prototype.addComponent = function(name,property){
+    let shape = lght.component.addComponent(name,property,this)
+    this.updateVisual()
+    return shape
+}
+
 lght.app.prototype.addObject = function (property) {
     return new lght.object(property,this);
 }
 
+lght.app.prototype.getObject = function(name){
+    return this.objects.find(e=>e.name===name)
+}
+
 lght.app.prototype.addStorage = function (property){
     return new lght.storage(property,this)
+}
+
+lght.app.prototype.addAdvanceStorage = function(property){
+    return new lght.advanceStorage(property,this)
 }
 
 lght.app.prototype.removeObject = function (obj) {
