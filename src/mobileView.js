@@ -61,9 +61,12 @@ const mobileView = class{
     this.createActionPanel()
     this.drawColorChoser()
     this.drawSpecialInfo()
-    this.drawAddBot()
     this.drawEndGame()
     this.drawSoundIcon()
+  }
+
+  initiateWithGameMode(gameMode){
+    this.drawAddBot(gameMode)
   }
 
   createPlayDeck = (currentTopCard)=>{
@@ -93,8 +96,9 @@ const mobileView = class{
     const endGame = this.app.addObject({display:false,x:this.app.canvas.width/2,y:this.app.canvas.height/2 - 50*pd,zIndex:100000000})
     endGame.addComponent('textBackground',{w:700,h:400})
     const text = endGame.addComponent('text',{text:'Someone had won the game!',fontSize:50,y:-20})
+    const changeInPointText = endGame.addComponent('text',{text:'',fontSize:30,y:30})
     let resolveFunction = ()=>{}
-    const restartText = endGame.addComponent('text',{text:'New Game',fontSize:40,color:'blue',y:70})
+    const restartText = endGame.addComponent('text',{text:'New Game',fontSize:40,color:'blue',y:80})
     restartText.hoverEvent(()=>{
       restartText.color = 'yellow'
       endGame.updateVisual()
@@ -103,8 +107,9 @@ const mobileView = class{
       endGame.updateVisual()
     })
     restartText.pressedEvent(()=>resolveFunction())
-    this.activateEndGame = (name,func)=>{
+    this.activateEndGame = (name,func,changeInPoint)=>{
       text.text = `🎉 ${name} had won the game! 🎉`
+      if(changeInPoint) changeInPointText.text = `You had gained ${changeInPoint} points!`
       endGame.updateVisual()
       endGame.display = true
       resolveFunction = func
@@ -142,7 +147,7 @@ const mobileView = class{
     this.showTutorial = ()=>{}
   }
 
-  drawAddBot(){
+  drawAddBot(gameMode){
     const addBot = this.app.addObject({display:false,x:this.positionReference.leaderBoard[0],y:this.positionReference.leaderBoard[1] + 55*pd})
     const text = addBot.addComponent('text',{fontSize:35,text:'Add Bot 🤖',})
     let resolveFunction = ()=>{}
@@ -154,7 +159,7 @@ const mobileView = class{
       addBot.updateVisual()
     })
     text.pressedEvent(()=>resolveFunction())
-    this.startAddBot = (func)=>{
+    this.startAddBot = (gameMode==='Competitive Player')?()=>{}:(func)=>{
       resolveFunction = func
       addBot.display = true
     }
@@ -174,7 +179,7 @@ const mobileView = class{
 
   drawSpecialInfo = ()=>{
     const specialInfo = this.app.addObject({x:this.positionReference.playDeck[0],y:this.positionReference.playDeck[1] + 85*pd})
-    const text = specialInfo.addText('text',{fontSize:40,text:''})
+    const text = specialInfo.addComponent('text',{fontSize:40,text:''})
     const colors = ['red','blue','yellow','green']
     const textColor = ['red','blue','#9b870c','green']
     this.activateInfo = (color)=>{
@@ -224,11 +229,11 @@ const mobileView = class{
     else this.cancelInfo()
   })
 
-  createActionPanel(actionFunction){
+  createActionPanel(actionFunction,gameMode){
     const actionalPanel = this.app.addStorage({x:this.app.canvas.width / 2,y:this.app.canvas.height/2 + 120*pd,spacing:50*pd})
     actionalPanel.addShape({kind:'roundedRectangle',display:false,w:this.app.canvas.width,h:150*pd,borderRadius:10*pd,color:'#ffffed',shadow:{color:'black',offsetX:5,offsetY:-5,blur:10},border:true,borderWidth:5,borderColor:'black'})
     actionalPanel.addShape({kind:'text',font:'40px Futura',text:"Actions:",y:-40*pd})
-    actionalPanel.model = ['Copy Link','Leave Game','Restart Game']
+    actionalPanel.model = (gameMode==='Casual')?['Copy Link','Leave Game','Restart Game']:['Leave Game']
     actionalPanel.elementFunction = (link)=>{
       const shape = actionalPanel.addShape({kind:'text',font:'35px Futura',text:link})
       shape.hoverEvent(()=>{
@@ -247,7 +252,7 @@ const mobileView = class{
   createLeaderboard(){
     const leaderBoard = this.app.addStorage({x:this.app.canvas.width/2,y:75,spacing:0})
     const turnIndicator = this.app.addObject({display:false})
-    turnIndicator.addShape({y:55*pd,kind:'poly',specialPolygon:true,numberOfSide:3,color:'yellow',radius:7*pd,rotation:90,border:true,borderColor:'black',borderWidth:7})
+    turnIndicator.addShape({y:60*pd,kind:'poly',specialPolygon:true,numberOfSide:3,color:'yellow',radius:7*pd,rotation:90,border:true,borderColor:'black',borderWidth:7})
     let colors = ['#90ee90','#ee2400','#D3D3D3','#00FFFF']
     leaderBoard.elementFunction = (content,i)=>{
           return leaderBoard.addShape({kind:'rect',color:colors[i],w:this.app.canvas.width/4,h:150,border:true,borderColor:'black',borderWidth:5,shadow:{blur:7,color:'black',offsetY:5}})
@@ -255,18 +260,28 @@ const mobileView = class{
       leaderBoard.model = ['text1','test2','txt2','t34']
       leaderBoard.updateToModel()
       let textShapes = []
-      this.updateLeaderboard = (players)=>{
+      let cardShape = []
+      this.updateLeaderboard = (players,cards,point)=>{
             leaderBoard.model = players
             leaderBoard.updateToModel()
             textShapes.forEach(e=>e.kill())
             textShapes = []
+            cardShape.forEach(e=>e.kill())
+            cardShape=[]
             players.forEach((name,i)=>{
                   const {x,y} = leaderBoard.storageShapes[i]
                   const text = leaderBoard.addShape({kind:'text',text:name,x,y:y-20,font:'30px Arial Bold',color:'black'})
                   textShapes.push(text)
             })
+            cards.forEach((card,i)=>{
+              const {x,y} = leaderBoard.storageShapes[i]
+              let pointStr = (typeof point[i]=='number')?`Point: ${point[i]}`:''
+              const text = leaderBoard.addShape({kind:'text',text:`Cards: ${card} ${pointStr}`,x,y:y+5,font:'18px Arial Bold',color:'black'})
+              textShapes.push(text)
+          })
             this.staticApp.turnFunctions(this.staticApp)
       }
+
       let timeOut = null
       this.emote = (name,color,emoji)=>{
         clearTimeout(timeOut)

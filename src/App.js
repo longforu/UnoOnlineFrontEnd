@@ -1,4 +1,4 @@
-import React,{useEffect} from 'react';
+import React,{useEffect,useState} from 'react';
 import './App.css';
 import {Provider,connect} from 'react-redux'
 import {BrowserRouter as Router,Switch,Link,Route,useLocation,withRouter} from 'react-router-dom'
@@ -8,6 +8,13 @@ import Join from './Page/Join';
 import Landing from './Page/Landing';
 import 'bootstrap/dist/css/bootstrap.min.css'
 import lght from './lght/lght'
+import Auth from './Page/Auth';
+import Profile from './Page/Profile';
+import BeatLoader from 'react-spinners/BeatLoader'
+import BarLoader from 'react-spinners/BarLoader'
+import {createSkirmish} from './Util'
+import { endMatchMaking } from './waiting';
+import {baseAPI} from './api'
 
 window.mobileCheck = function() {
   let check = false;
@@ -15,33 +22,86 @@ window.mobileCheck = function() {
   return check;
 };
 
-const Content = withRouter(connect(({loggedIn,joined})=>({loggedIn,joined}),(dispatch)=>({dispatch}))(({loggedIn,dispatch,history,joined})=>{
+const Content = withRouter(connect(({loggedIn,joined,loggedInUser,matchMaking,skirmish,userToken})=>({loggedIn,joined,loggedInUser,matchMaking,skirmish,userToken}),(dispatch)=>({dispatch}))(({loggedIn,dispatch,history,joined,loggedInUser,matchMaking,skirmish,userToken})=>{
     const {pathname} = window.location
+    const [minimized,setMinimized] = useState(false)
+    const [showCompetitive,setShowCompeititve] = useState(false)
+    const [loading,setLoading] = useState(false)
+
+    const joinUser = async (id)=>{
+      setLoading(true)
+      const {data} = await baseAPI.post('/joinUser',{id},{
+        headers:{
+          Authorization:`JWT ${userToken}`
+        }
+      })
+      const {token,playerid,gameid} = data
+      dispatch({type:'JOIN_LOG_IN',token,playerid,gameid})
+      setLoading(false)
+    }
+
     useEffect(()=>{
       lght.stopAll()
       if(pathname.match(/join/) && !joined){
-        const tempJoinId = pathname.split('/')[2]
-        console.log(tempJoinId)
-        dispatch({type:'LOG_OUT_WITH_TEMP_JOIN',tempJoinId})
-        history.push('/join')
+        if(loggedInUser) joinUser(pathname.split('/')[2])
+        else{
+          const tempJoinId = pathname.split('/')[2]
+          dispatch({type:'LOG_OUT_WITH_TEMP_JOIN',tempJoinId})
+          history.push('/join')
+        }
       }
       else if(loggedIn){
-        console.log('hello')
         if(!pathname.match(/game/)) history.push('/game')
       }
-      else history.push('/')
-    },[loggedIn,joined])
+      else if(loggedInUser){
+        history.push('/profile')
+      }
+      else if(!pathname.match('/auth')) history.push('/')
+    },[loggedIn,joined,loggedInUser])
 
     return(
       <>
       <Switch>
-        <Route path='/game' exact component={Game}/>
+        <Route path='/game' exact>
+          <Game triggerCompetitive={()=>{
+            setShowCompeititve(true)
+            setTimeout(()=>setShowCompeititve(false),3000)
+          }}/>
+        </Route>
         <Route path='/join' exact>
           <Join changeHistory={history}/>
         </Route>
         <Route path='/'exact component={Landing}/>
+        <Route path='/auth' exact component={Auth}/>
+        <Route path='/profile' exact>
+          <Profile triggerCompetitive={()=>{
+            setShowCompeititve(true)
+            setTimeout(()=>setShowCompeititve(false),3000)
+          }}/>
+        </Route>
       </Switch>
       <div className='backgrounddiv'></div>
+      {matchMaking&&
+      <div className='matchMaking pt-5 pb-5 text-secondary' style={{transform:(minimized)?`translate(${window.mobileCheck()?'90%':'100%'}, 0%)`:'none',bottom:(window.mobileCheck())?0:50,right:(window.mobileCheck())?0:50,width:(window.mobileCheck())?'100%':400}}>
+        <div>Waiting for a match...</div>
+        <div style={{fontSize:20}}>
+          {skirmish&&'Enjoy the skirmish game!'}
+          {!skirmish&&<a href='/' onClick={e=>{e.preventDefault();createSkirmish()}}>Create a skirmish game</a>}
+        </div>
+        <BeatLoader css={{margin:'auto',marginTop:20}} color='blue' loading={matchMaking}/>
+        <div><a href='/' onClick={e=>{e.preventDefault();endMatchMaking();dispatch({type:'END_MATCHMAKING'})}}>End matchmaking</a></div>
+        <div className='position-absolute icon' onClick={(e)=>{setMinimized(!minimized)}}>
+          {minimized && '+'}
+          {!minimized && '-'}
+        </div>
+      </div>}
+      <div className='matchMaking pt-5 pb-5 text-secondary' style={{transform:(!showCompetitive)?'translate(120%, 0%)':'none',bottom:(window.mobileCheck())?0:50,right:(window.mobileCheck())?0:50,width:(window.mobileCheck())?'100%':400}}>
+        <div className='font-weight-bold'>You are playing with another player! Wave 👋</div>
+        <div className='text-secondary'>Enjoy the game!</div>
+      </div>
+      <div style={{position:'absolute',top:'50%',width:'100%'}}>
+          <BarLoader color='blue' loading={loading} width='200px' css={{margin:'auto'}}/>
+      </div>
       </>
     )
 }))

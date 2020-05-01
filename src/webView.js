@@ -14,16 +14,16 @@ const webView = class{
       colorReference:['red','yellow','green','blue'],
       otherReference:['Skip','Reverse','Draw 2']
     }
-    this.app = new lght.app(ref)
-    this.app.backgroundColor = 'none'
-    this.staticApp = new lght.app(ref2,{constantRender:false})
-    this.staticApp.backgroundColor='none'
-    this.app.pixelDensity = pd
-    this.app.canvas.width = 850*pd
-    this.app.canvas.height = 650*pd
-    this.staticApp.pixelDensity = pd
-    this.staticApp.canvas.width = 850*pd
-    this.staticApp.canvas.height = 650*pd
+    const processApp = (ref,option)=>{
+      const app = new lght.app(ref,option)
+      app.pixelDensity = pd
+      app.canvas.width = 850*pd
+      app.canvas.height = 650*pd
+      app.backgroundColor='none'
+      return app
+    }
+    this.app = processApp(ref)
+    this.staticApp = processApp(ref2,{constantRender:false})
     this.staticApp.addObject({x:this.app.canvas.width/2,y:this.app.canvas.height/2,zIndex:-10}).addShape({kind:'roundedRectangle',w:this.app.canvas.width,h:this.app.canvas.height,clip:true,clipImageLink:'assets/wood.jpg'})
     this.staticApp.turnFunctions(this.staticApp)
     this.yRow = 0.4*this.app.canvas.height
@@ -32,7 +32,8 @@ const webView = class{
       leaderBoard:[0.85*this.app.canvas.width,this.yRow],
       drawDeck:[0.38*this.app.canvas.width,this.yRow],
       playDeck:[0.62*this.app.canvas.width,this.yRow],
-      actionPanel:[0.15*this.app.canvas.width,this.yRow]
+      actionPanel:[0.15*this.app.canvas.width,this.yRow],
+      playerDeck:[this.app.canvas.width/2,this.app.canvas.height-(handHeight/2)]
     }
 
     let drawable = false
@@ -51,7 +52,7 @@ const webView = class{
       resolveFunction = (r)
     })
     this.cancelDraw = ()=>drawable = false
-    
+
     this.createHand()
     this.createLeaderboard()
     this.drawAnnouncement()
@@ -60,10 +61,13 @@ const webView = class{
     this.drawColorChoser()
     this.drawSpecialInfo()
     this.drawEmote()
-    this.drawAddBot()
     this.drawEndGame()
     this.drawSoundIcon()
     this.initAnimation()
+  }
+
+  initiateWithGameMode(gameMode){
+    this.drawAddBot(gameMode)
   }
 
   createPlayDeck(currentTopCard){
@@ -95,24 +99,26 @@ const webView = class{
     endGame.addComponent('textBackground',{w:700,h:200})
     const text = endGame.addComponent('text',{text:'Someone had won the game!',fontSize:40,y:-10})
     let resolveFunction = ()=>{}
-    const restartText = endGame.addShape({kind:'text',text:'New Game',font:'30px Arial Bold',color:'blue',y:50})
+    const pointText = endGame.addComponent('text',{text:'',fontSize:20,y:40,color:'grey'})
+    const restartText = endGame.addShape({kind:'text',text:'New Game',font:'30px Arial Bold',color:'blue',y:70})
     restartText.hoverEvent(()=>{
       restartText.color = 'yellow'
       endGame.updateVisual()
     },()=>{
       restartText.color = 'blue'
       endGame.updateVisual()
-    })
-    restartText.pressedEvent(()=>resolveFunction())
-    this.activateEndGame = (name,func)=>{
+    }).pressedEvent(()=>resolveFunction())
+
+    this.activateEndGame = (name,func,point)=>{
       text.text = `🎉 ${name} had won the game! 🎉`
+      if(point) pointText.text = `You had gained ${point} points!`
       endGame.updateVisual()
       endGame.display = true
       resolveFunction = func
     }
   }
 
-  drawTutorial(){
+  drawTutorial(gameMode){
     const tutorial = this.app.addAdvanceStorage({display:false,alignX:true,alignDirectionX:'center',alignY:true,alignDirectionY:'center',alignMarginX:0,alignMarginY:-50*pd,zIndex:100000,direction:'column',spacing:5,paddingTop:10*pd,paddingBottom:10*pd,paddingLeft:10*pd,paddingRight:10*pd})
     tutorial.backgroundFunction = ()=>tutorial.addComponent('textBackground',{})
     const x = tutorial.addShape({kind:'img',spriteLink:'assets/crossIcon.png',drawWidth:50,x:320,y:-320})
@@ -139,10 +145,10 @@ const webView = class{
       return shape
     }
     tutorial.updateToModel()
-    this.showTutorial = ()=>tutorial.display = true
+    this.showTutorial = (gameMode==='Casual')?()=>tutorial.display = true:()=>{}
   }
 
-  drawAddBot(){
+  drawAddBot(gameMode){
     const addBot = this.app.addObject({display:false,x:this.positionReference.leaderBoard[0],y:this.positionReference.leaderBoard[1] + 120*pd})
     const text = addBot.addShape({kind:'text',font:'35px Arial Bold',text:'Add Bot 🤖',})
     let resolveFunction = ()=>{}
@@ -152,12 +158,11 @@ const webView = class{
     },()=>{
       text.color = 'black'
       addBot.updateVisual()
-    })
-    text.pressedEvent(()=>resolveFunction())
-    this.startAddBot = (func)=>{
+    }).pressedEvent(()=>resolveFunction())
+    this.startAddBot = (gameMode==='Competitive Player')?(()=>{}):((func)=>{
       resolveFunction = func
       addBot.display = true
-    }
+    })
     this.cancelAddBot = ()=>{
       addBot.display = false
     }
@@ -176,8 +181,7 @@ const webView = class{
       },()=>{
         shape.fontSize = 30;
         emoteChooser.updateVisual()
-      })
-      shape.pressedEvent(()=>func(content))
+      }).pressedEvent(()=>func(content))
       return shape
     }
     emoteChooser.updateToModel()
@@ -287,29 +291,28 @@ const webView = class{
     card.addAnimation('x',this.playDeck.x,animationTime,()=>{
       this.playDeck.kill()
       this.playDeck=card
-    })
-    card.addAnimation('y',this.playDeck.y,animationTime,r)
+    }).addAnimation('y',this.playDeck.y,animationTime,r)
     card.shapes[0].addAnimation('scaleX',1,animationTime)
-    card.shapes[0].addAnimation('scaleY',1,animationTime)
+      .addAnimation('scaleY',1,animationTime)
     if(content.match(/Draw 4/) || content.match(/Wild/)) this.activateInfo(content.split(' ')[0])
     else this.cancelInfo()
   })
 
-  createActionPanel(actionFunction){
+  createActionPanel(actionFunction,gameMode){
     const actionalPanel = this.app.addStorage({x:this.positionReference.actionPanel[0],y:this.positionReference.actionPanel[1],name:'actionPanel',spacing:20,direction:'column'})
-    actionalPanel.addShape({kind:'roundedRectangle',w:120*pd,h:150*pd,borderRadius:10*pd,color:'#ffffed',shadow:{color:'black',offsetX:5,offsetY:-5,blur:10},border:true,borderWidth:5,borderColor:'black'})
-    actionalPanel.addShape({kind:'text',font:'32px Arial Bold',text:"Actions:",y:-60*pd})
-    actionalPanel.model = ['Copy Link','Leave Game','Restart Game']
+    actionalPanel.addComponent('textBackground',{w:120*pd,h:150*pd})
+    actionalPanel.addComponent('text',{fontSize:32,text:"Actions:",y:-60*pd})
+    if(gameMode === 'Casual') actionalPanel.model = ['Copy Link','Leave Game','Restart Game']
+    else actionalPanel.model = ['Leave Game']
     actionalPanel.elementFunction = (link)=>{
-      const shape = actionalPanel.addShape({kind:'text',font:'30px Arial Bold',text:link})
+      const shape = actionalPanel.addComponent('text',{fontSize:30,text:link})
       shape.hoverEvent(()=>{
         shape.color = 'yellow'
         actionalPanel.updateVisual()
       },()=>{
         shape.color = 'black'
         actionalPanel.updateVisual()
-      })
-      shape.pressedEvent(()=>actionFunction[link.split(' ').join('')]())
+      }).pressedEvent(()=>actionFunction[link.split(' ').join('')]())
       return shape
     }
     actionalPanel.updateToModel()
@@ -340,14 +343,14 @@ const webView = class{
       })
     }
     let cardElement = []
-    this.updateLeaderboard = (players,cardsAmount)=>{
+    this.updateLeaderboard = (players,cardsAmount,pointAmount)=>{
           cardElement.forEach(e=>e.kill())
           cardElement = []
           leaderBoard.model = players
           leaderBoard.updateToModel()
           leaderBoard.storageShapes.forEach((e,i)=>{
             const {x,y} = e
-            cardElement.push(leaderBoard.addComponent('text',{text:`Cards: ${cardsAmount[i]}`,x,y:y+30,color:'grey',fontSize:20}))
+            cardElement.push(leaderBoard.addComponent('text',{text:`Cards: ${cardsAmount[i]} ${(typeof pointAmount[i]==='number')?"Point: "+pointAmount[i]:''}`,x,y:y+30,color:'grey',fontSize:20}))
           })
           this.staticApp.turnFunctions(this.staticApp)
     }
@@ -380,7 +383,7 @@ const webView = class{
         shape.borderWidth = 1.25*pd
         shape.addAnimation('y',30,200)
       })
-      shape.pressedEvent(()=>{
+      .pressedEvent(()=>{
             if(!verifyFunction(content) || !onSelect) return
             onSelect = false
             shape.kill()
@@ -494,7 +497,7 @@ const webView = class{
       
       //Format: [text,color,time/perpetual,started]
       this.announcement = this.app.addObject({x:'50%',y:50*pd,name:'Announcement'})
-      this.annoucementText = this.announcement.addComponent('text',{fontSize:10,text:'',display:false})
+      this.annoucementText = this.announcement.addComponent('text',{fontSize:70,text:'',display:false})
       this.announcement.addShape({kind:'roundedRectangle',w:this.app.canvas.width/2,h:100*pd,display:false})
       const fadeOut = (func)=>this.annoucementText.addAnimation('opacity',0,animationDuration,()=>{this.annoucementText.display=false;if(func) func()})
       const fadeIn = (funcDone)=>this.annoucementText.addAnimation('opacity',1,animationDuration,funcDone)

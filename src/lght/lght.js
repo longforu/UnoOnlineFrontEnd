@@ -1055,6 +1055,7 @@ lght.img = class extends lght.shape{
             }
         }
     })
+    return this
 }
 
 //<--------------MOUSE INPUT GO HERE---------------------->
@@ -1303,7 +1304,6 @@ const addAnimation = function(property,value,time,func){
     let id = this.animationCount;
 
     let timeout = setTimeout(()=>{
-        console.log(property,this,value)
         changeByDotNotation(property,this,value)
         this.cancelAnimation(id)
         if(this.parent.static !== undefined) this.parent.static = true

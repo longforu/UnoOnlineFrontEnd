@@ -16,6 +16,32 @@ body{
 .game2{
   z-index:-2
 }
+
+.matchMaking{
+  z-index: 100000;
+  background-color:white;
+  position: fixed;
+  border-radius: 10px;
+  border: 1px solid black;
+  border-top: 3px solid #007bff;
+  text-align: center;
+  transform-origin: 0% 0%;
+  transition: transform 0.5s cubic-bezier(0.77,0.2,0.05,1.0);
+}
+
+.icon{
+  top:-10px;
+  left:15px;
+  font-size:40px;
+  cursor: pointer;
+  color:blue
+}
+
+.signInBox{
+  border-radius: 5px;
+  border-top: 3px solid #007bff;
+}
+
 .floating {  
   animation-name: floating;
   animation-duration: 3s;

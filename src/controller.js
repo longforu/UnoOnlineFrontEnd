@@ -3,13 +3,12 @@ const io = require('socket.io-client')
 const axios = require('axios')
 const _ = require('lodash')
 
-const Controller = async (canvasref,canvasstatic,token,userid,CopyLink,LeaveGame,canvasSpecial)=>{
+const Controller = async (canvasref,canvasstatic,token,userid,CopyLink,LeaveGame,canvasSpecial,compFunc)=>{
       let view = new View(canvasref,canvasstatic,canvasSpecial)
-      view.drawTutorial()
       let model = null
-      const url = (process.env.NODE_ENV==='production')?'/':'http://localhost:4000'
-      const socket = io.connect(url,{query:{token}})
-      view.showTutorial()
+      let url = (process.env.NODE_ENV==='production')?'/game':'http://localhost:4000/game'
+      if(window.mobileCheck() && process.env.NODE_ENV !== 'production') url = 'http://10.0.1.10:4000/game'
+      const socket = io(url,{query:{token}})
       const play = (card)=>{
             socket.emit('Play Card',card)
       }
@@ -58,12 +57,9 @@ const Controller = async (canvasref,canvasstatic,token,userid,CopyLink,LeaveGame
       }
 
       const update = async (m)=>{
+            console.info(m)
             let oldModel = (model)?_.cloneDeep(model):null
             model = m
-            if(!model.inGame && model.players.length > 1 && !model.endGame) view.initiateStartGameMessage(()=>socket.emit('Start Game'))
-            else view.turnOffStartGameMessage()
-            if(!model.inGame && model.players.length < 4 && !model.endGame) view.startAddBot(addBot)
-            else view.cancelAddBot()
             if(parseInt(model.onTurn) == userid){
                   view.awaitSelection(verify).then((content)=>{view.cancelDraw();view.cancelSelection();play(content)})
                   view.awaitDraw().then(()=>{view.cancelSelection();view.cancelDraw();draw()})
@@ -77,7 +73,7 @@ const Controller = async (canvasref,canvasstatic,token,userid,CopyLink,LeaveGame
                   let newAnnoucements = model.feed.slice(oldModel.feed.length)
                   let newDirectives = model.directives.slice(oldModel.directives.length)
                   const players = model.players.map(e=>e.username)
-                  view.updateLeaderboard(players,model.players.map(e=>e.cards.length))
+                  view.updateLeaderboard(players,model.players.map(e=>e.cards.length),model.players.map(e=>(e.userid)?e.point:undefined))
                   if(newAnnoucements.length) newAnnoucements.forEach(message=>view.addToAnnoucementQueue(message,'black',500))
                   if(newDirectives.length){
                         for(let [code,user,otherinfo] of newDirectives){
@@ -128,30 +124,43 @@ const Controller = async (canvasref,canvasstatic,token,userid,CopyLink,LeaveGame
                   if(JSON.stringify(oldCard) !== JSON.stringify(newCard))view.updateCards(sortDeck(model.players[userid].cards,model.currentTopCard))
             }
             else{
+                  const gameMode = model.gameMode
                   const players = model.players.map(e=>e.username)
-                  view.updateLeaderboard(players,model.players.map(e=>e.cards.length))
+                  view.updateLeaderboard(players,model.players.map(e=>e.cards.length),model.players.map(e=>(e.userid)?e.point:undefined))
                   view.updateCards(sortDeck(model.players[userid].cards,model.currentTopCard))
                   if(model.onTurn>=0)view.updateTurnIndicator(model.onTurn)
                   view.createPlayDeck(model.currentTopCard)
+                  view.drawTutorial(gameMode)
+                  view.showTutorial()
+                  view.initiateWithGameMode(gameMode)
+                  view.createActionPanel({
+                        CopyLink,
+                        LeaveGame,
+                        RestartGame:()=>socket.emit('Restart Game')
+                  },gameMode)
             }
+            if(!model.inGame && model.players.length > 1 && !model.endGame) view.initiateStartGameMessage(()=>socket.emit('Start Game'))
+            else view.turnOffStartGameMessage()
+            if(!model.inGame && model.players.length < 4 && !model.endGame) view.startAddBot(addBot)
+            else view.cancelAddBot()
       }
 
       socket.on('Update',update)
       socket.on('New Game',(m)=>{
             view.kill()
             view = new View(canvasref,canvasstatic,canvasSpecial)
-            view.createActionPanel({
-                  CopyLink,
-                  LeaveGame,
-                  RestartGame:()=>socket.emit('Restart Game')
-            })
             view.drawEmoteChooser(emote)
             model = null
             update(m)
       })
 
-      socket.on('End Game',(winner)=>{
-            view.activateEndGame(model.players[winner].username,()=>socket.emit('Restart Game'))
+      socket.on('End Game',({win,changeInPoint})=>{
+            console.log(changeInPoint)
+            let func
+            if(model.gameMode !== 'Competitive Player') func = ()=>socket.emit('Restart Game')
+            else func=compFunc
+            view.activateEndGame(model.players[win].username,func,(changeInPoint)?changeInPoint[userid]:null)
+            console.log('endGame')
       })
 
       socket.on('Choose Color',async ()=>{
@@ -164,15 +173,12 @@ const Controller = async (canvasref,canvasstatic,token,userid,CopyLink,LeaveGame
             const colorCode = ['green','red','black','blue']
             view.emote(model.players[userid].username,colorCode[userid],emoji)
       })
-      socket.on('Delete Inactive',()=>view.changeAnnoucementPerpetual('This game was delete due to inactivity'))
       socket.on('Critical Error',LeaveGame)
-      view.createActionPanel({
-            CopyLink,
-            LeaveGame,
-            RestartGame:()=>socket.emit('Restart Game')
-      })
       view.drawEmoteChooser(emote)
-      console.log = ()=>{}
+      return (()=>{
+            socket.close()
+            view.kill()
+      })
 }
 
 export default Controller

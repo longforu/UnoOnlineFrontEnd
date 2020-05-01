@@ -4,8 +4,10 @@ import Controller from '../controller'
 import cogoToast from 'cogo-toast'
 import mobileView from '../mobileView'
 import testView from '../testView'
+import {createSkirmish} from '../Util'
+import {startMatchMaking,endMatchMaking} from '../waiting'
 
-const Game = connect(({token,playerid,id})=>({token,playerid,id}),dispatch=>({dispatch}))(({token,playerid,id,dispatch})=>{
+const Game = connect(({token,playerid,id,skirmish,userToken})=>({token,playerid,id,skirmish,userToken}),dispatch=>({dispatch}))(({token,playerid,id,dispatch,skirmish,userToken,triggerCompetitive})=>{
     const ref = useRef()
     const ref2 = useRef()
     const ref3 = useRef()
@@ -21,10 +23,26 @@ const Game = connect(({token,playerid,id})=>({token,playerid,id}),dispatch=>({di
     };
     const url = `http://onegame.us/join/${id}`
 
+    const leaveGame = (skirmish)?()=>dispatch({type:'LOG_OUT_SKIRMISH_GAME'}):()=>dispatch({type:'LOG_OUT'})
+    const restartCompetitive = async ()=>{
+      await createSkirmish()
+      startMatchMaking(userToken,({token,playerid})=>{
+            endMatchMaking()
+            dispatch({type:'LOG_IN',token,playerid})
+            triggerCompetitive()
+      },(message)=>{
+            dispatch({type:'END_MATCHMAKING'})
+            cogoToast.error(message)
+      })
+    }
+
+    let disconnectFunc = ()=>{}
+    let startGame = async ()=>disconnectFunc=await Controller(ref.current,ref2.current,token,playerid,()=>copyToClipboard(url),leaveGame,ref3.current,restartCompetitive)
     useEffect(()=>{
-      // Controller(ref.current,ref2.current,token,playerid,()=>copyToClipboard(url),()=>dispatch({type:'LOG_OUT'}),ref3.current)
+      startGame()
+      return ()=>{disconnectFunc()}
       // testView(ref.current)
-    },[])
+    },[token])
     return (
       <div className="App">
         {!window.mobileCheck()&&

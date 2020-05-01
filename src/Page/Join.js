@@ -3,8 +3,7 @@ import BarLoader from 'react-spinners/BarLoader'
 import {withRouter} from 'react-router-dom'
 import {connect} from 'react-redux'
 import {Formik,Form} from 'formik'
-import Logo from '../9.svg'
-import Polygon from '../polygon.svg'
+import Logo from '../Components/Logo'
 const {join} = require('../api')
 
 const Join = (connect(({tempJoinId})=>({tempJoinId}),dispatch=>({dispatch}))(({dispatch,changeHistory,tempJoinId})=>{
@@ -33,9 +32,7 @@ const Join = (connect(({tempJoinId})=>({tempJoinId}),dispatch=>({dispatch}))(({d
             <div className={`row ${(window.mobileCheck())?'':'w-75'} mx-auto`} style={{maxWidth:(window.mobileCheck())?100000:400}}>
             {!loading &&
                 <div className='text-center w-100 mx-auto' style={{fontFamily:'Arial Bold'}}>
-                    <div className='mt-5 mb-5 floating'>
-                      <img src={Polygon} style={{width:300,margin:'auto',width:'200px'}} className=''/>
-                    </div>
+                    <Logo/>
                     <div><i>One</i> is an UNO-like card game that is completely playable online.</div>
                     <div className='text-secondary'>Made by Long Tran</div>
                     <div className='pt-5 pb-5 mt-3' style={{boxShadow:'0px 4px 16px rgba(31, 31, 31, 0.16)',border:'1px solid black',borderRadius:'15px',backgroundColor:'white'}}>
