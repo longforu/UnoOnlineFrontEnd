@@ -61,7 +61,7 @@ config.defaultObjectProps = {
     static:true,
     rotation:0, 
     positionIndicator:false,
-    display:true,opacity:1,
+    display:true,opacity:1, cachable:[], cacheDependencies:[],
     mouseUpEvent:[],mouseDownEvent:[],mouseMoveEvent:[],
     zIndex:0,
     scale:1

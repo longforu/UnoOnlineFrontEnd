@@ -306,6 +306,41 @@ lght.object = class extends lght.coordinate{
         this.initBehaviors.forEach(e=>this.activateBehavior(e))        
     }
 
+    populateCacheSpecific(object,cachable,cacheDependencies){
+        const getValueFromProp = prop=>(typeof this[prop]==='function')?this[prop]():this[prop]
+
+        cachable.forEach((e)=>{
+            let changed = false
+            cacheDependencies.forEach(prop=>{
+                let value = getValueFromProp(prop)
+                if(value !== object[prop]){
+                    object[prop] = value
+                    changed = true
+                }
+            })
+            
+            if(changed) object[e] = getValueFromProp(e)
+        })
+    }
+
+    populateCache(){
+        if(!this.parent.shadowApp) return
+        const object = this.parent.shadowApp.find(({name})=>name===this.name)
+        if(!object) return
+        //cachable cacheDependencies objectCachable objectCacheDependencies
+        this.populateCacheSpecific(object,this.cachable,this.cacheDependencies)
+        if(this.objectCachable) this.populateCacheSpecific(object,this.objectCachable,this.objectCacheDependencies)
+        if(!object.shapes) object.shapes = this.shapes.map(({name})=>({name}))
+        else object.shapes = object.shapes.filter(({name})=>this.shapes.find(e=>e.name===name))
+        this.shapes.forEach((e,i)=>this.shapes[i].populateCache(object.shapes[i]))
+    }
+
+    getCache(property){
+        if(!this.parent.shadowApp) return
+        const object= this.parent.shadowApp.find(({name})=>name===this.name)
+        return (object)?object[property]:false
+    }
+
     changePosition(x,y){
         if(x){
             if(this.alignX){
@@ -664,6 +699,37 @@ lght.shape = class {
         (property,config.defaultShapeOptions,this); 
         this.initBehaviors.forEach(e=>this.activateBehavior(e)) 
         this.name = property.name || `Shape${shapeCount++}`       
+    }
+
+    populateCacheSpecific(object,cachable,cacheDependencies){
+        const getValueFromProp = prop=>(typeof this[prop]==='function')?this[prop]():this[prop]
+
+        cachable.forEach((e)=>{
+            let changed = false
+            cacheDependencies.forEach(prop=>{
+                let value = getValueFromProp(prop)
+                if(value !== object[prop]){
+                    object[prop] = value
+                    changed = true
+                }
+            })
+            
+            if(changed) object[e] = getValueFromProp(e)
+        })
+    }
+
+    populateCache(object){
+        this.populateCacheSpecific(object,this.cachable,this.shapeCachable)
+        if(this.shapeCachable) this.populateCacheSpecific(object,this.shapeCachable,this.shapeCacheDependencies)
+    }
+
+    getCache = (property)=>{
+        if(!this.parent.parent.shadowApp) return
+        const object = this.parent.parent.shadowApp.find(({name})=>name===this.parent.name)
+        if(!object || !object.shapes) return false
+        const shape = object.shapes.find(({name})=>name===this.name)
+        if(!shape) return false
+        return shape[property]
     }
 
     kill (){
@@ -1069,6 +1135,8 @@ lght.text = class extends lght.shape{
     }
 
     get textSize(){
+        const cache = this.getCache('textSize')
+        if(cache) return cache
         var c = lght.apps[0].context;
         c.save();
         c.font = this.font;
@@ -1545,6 +1613,7 @@ lght.app.prototype.drawEverything = function(){
 lght.app.prototype.createShadowApp = function(){
     this.shadowApp = []
     for(let {name,cacheMax} of this.objects) this.shadowApp.push({name,cacheMax:[...cacheMax]})
+    this.objects.forEach(e=>e.populateCache())
 }
 
 lght.app.prototype.getMaxFromShadowApp = function(name){
@@ -1566,9 +1635,9 @@ lght.app.prototype.render = function(){
         return this.createShadowApp()
     }
     this.batchQueue.forEach(e=>this.renderObject(e))
-    if(this.batchQueue.length) console.log(performance.now(),this.batchQueue)
+    this.batchQueue.forEach(name=>{if(this.getObject(name)) this.getObject(name).populateCache()})
     this.batchQueue = []
-    return this.createShadowApp()
+    return
 }
 
 lght.app.prototype.visualInit = function(){
