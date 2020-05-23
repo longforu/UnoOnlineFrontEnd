@@ -343,14 +343,14 @@ const webView = class{
       })
     }
     let cardElement = []
-    this.updateLeaderboard = (players,cardsAmount,pointAmount)=>{
+    this.updateLeaderboard = (players,cardsAmount,pointAmount,gameWon)=>{
           cardElement.forEach(e=>e.kill())
           cardElement = []
           leaderBoard.model = players
           leaderBoard.updateToModel()
           leaderBoard.storageShapes.forEach((e,i)=>{
             const {x,y} = e
-            cardElement.push(leaderBoard.addComponent('text',{text:`Cards: ${cardsAmount[i]} ${(typeof pointAmount[i]==='number')?"Point: "+pointAmount[i]:''}`,x,y:y+30,color:'grey',fontSize:20}))
+            cardElement.push(leaderBoard.addComponent('text',{text:`Cards: ${cardsAmount[i]} ${((gameWon)&&("Game Won: "+gameWon[i]))||''} ${(typeof pointAmount[i]==='number')?"Point: "+pointAmount[i]:''}`,x,y:y+30,color:'grey',fontSize:20}))
           })
           this.staticApp.turnFunctions(this.staticApp)
     }

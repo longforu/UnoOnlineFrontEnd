@@ -261,7 +261,7 @@ const mobileView = class{
       leaderBoard.updateToModel()
       let textShapes = []
       let cardShape = []
-      this.updateLeaderboard = (players,cards,point)=>{
+      this.updateLeaderboard = (players,cards,point,gameWon)=>{
             leaderBoard.model = players
             leaderBoard.updateToModel()
             textShapes.forEach(e=>e.kill())
@@ -276,7 +276,8 @@ const mobileView = class{
             cards.forEach((card,i)=>{
               const {x,y} = leaderBoard.storageShapes[i]
               let pointStr = (typeof point[i]=='number')?`Point: ${point[i]}`:''
-              const text = leaderBoard.addShape({kind:'text',text:`Cards: ${card} ${pointStr}`,x,y:y+5,font:'18px Arial Bold',color:'black'})
+              let gameWonStr = (gameWon)?`${gameWon[i]}`:''
+              const text = leaderBoard.addShape({kind:'text',text:`Cards: ${card} ${gameWonStr} ${pointStr} `,x,y:y+5,font:'18px Arial Bold',color:'black'})
               textShapes.push(text)
           })
             this.staticApp.turnFunctions(this.staticApp)

@@ -1,231 +1,169 @@
-import {degToRad,rotatePoint} from '../util/util'
+import {rotatePoint, degToRad, findAngle2Point } from './util.js'
 
-module.exports = (lght)=> {
-    lght.app.prototype.render = function(){
-        this.clearCanvas();
-        this.fillBackground();
-        this.renderShape();
-    }
+const draw = {}
+draw.drawShape = function(c,x,y,shape){
+      x = ~~(x+0.5)
+      y = ~~(y+0.5)
+      if(!shape.display) return
+      if(shape.border || shape.borderOnly) this.drawShapeKind(c,shape,x,y,true,1,shape.borderColor,shape.shadow);
+      else if(!shape.borderOnly && !shape.border) this.drawShapeKind(c,shape,x,y,false,shape.opacity,shape.color,shape.shadow);
+      if(!shape.borderOnly) this.drawShapeKind(c,shape,x,y,false,shape.opacity,shape.color);
+  }
+  
+  draw.drawShapeKind = function(c,s,x,y,stroke,opacity,color,shadow){
+      opacity = opacity * s.parent.opacity;
+      if(opacity === 0 || opacity <0 ) return
+  
+      const scale = s.trueScale
+      c.save()
+      c.globalAlpha = opacity
+      c.fillStyle = color
+      c.strokeStyle = color
+      c.lineWidth = s.borderWidth
+      c.translate(x,y)
+      c.scale(s.scaleX,s.scaleY)
+      
+      if(shadow){
+          const {color,blur,offsetX,offsetY} = shadow
+          c.shadowColor = color
+          c.shadowBlur = blur
+          c.shadowOffsetX = offsetX
+          c.shadowOffsetY = offsetY
+      }
+  
+      switch(s.kind){
+          case 'rect':
+              draw.drawRect(c, s.w*scale, s.h*scale, s.rotation, stroke); break;
+          case 'arc':
+              draw.drawArc(c, s.rad*scale,s.arcDegree,s.rotation, stroke); break;
+          case 'text':
+              draw.drawText(c, s.text,s.font, stroke,s.textAlign ,s.w, s.h,s.rotation); break;
+          case 'img':
+              if(s.imageLoaded) draw.drawImg(c, s.sprite,s.w,s.h,s.rotation); break;
+          case 'poly':
+              draw.drawPoly(c, s.polyPoints,s.rotation, stroke); break;
+          case 'line':
+              if(stroke){
+                  const points = s.points.map(((position,index)=>{
+                      const [x,y] = position
+                      if(index === 0){
+                          const angle = degToRad(findAngle2Point(...position,...s.points[index+1]))
+                          return [x-s.borderWidth*Math.cos(angle),y+s.borderWidth*Math.sin(angle)]
+                      }
+                      else if(index === s.points.length-1){
+                          const angle = degToRad(findAngle2Point(...position,...s.points[index-1]))
+                          return [x-s.borderWidth*Math.cos(angle),y+s.borderWidth*Math.sin(angle)]
+                      }
+                      else return [x,y]
+                  }))
+                  draw.drawLine(c,points,s.rotation,s.lineWidth+s.borderWidth);
+              }
+              else draw.drawLine(c,s.points,s.rotation,s.lineWidth); break;
+          case 'roundedRectangle':
+              draw.drawRoundedRectangle(c,s.w*scale,s.h*scale,s.rotation,s.borderRadius,stroke)
+              break
+          default:
+              break
+      }
+      if(s.clip && s.clipImageLoaded){
+          c.clip()
+          c.rotate(degToRad(s.rotation))
+          if(typeof s.clipSpriteSheetX === 'number' && typeof s.clipSpriteSheetY === 'number'){
+              const spriteWidth = s.clipImage.width / s.spriteLengthX
+              const spriteHeight = s.clipImage.height / s.spriteLengthY
+              const clipStartX = s.clipSpriteSheetX * spriteWidth
+              const clipStartY = s.clipSpriteSheetY * spriteHeight
+              c.drawImage(s.clipImage,clipStartX,clipStartY,spriteWidth,spriteHeight,(-s.width/2)/s.scaleX,(-s.height/2)/s.scaleY,s.width/s.scaleX,s.height/s.scaleY)
+          }
+          else c.drawImage(s.clipImage,(-s.width/2)/ s.scaleX,(-s.height/2)/ s.scaleY,s.width / s.scaleX,s.height / s.scaleY)
+      }
+  
+      c.restore()
+  }
+  
+  //DRAWING RECTANGLE
+  draw.drawRect = function(c,w,h,rotation,stroke){
+      c.rotate(degToRad(360-rotation))
+      if(stroke) c.strokeRect(-w/2,-h/2,w,h);
+      else c.fillRect(-w/2,-h/2,w,h);
+  }
+  
+  draw.drawRoundedRectangle = (c,w,h,rotation,borderRadius,stroke)=>{
+      c.rotate(degToRad(360,rotation))
+      c.beginPath()
+      c.moveTo(0,-h*0.5)
+      c.lineTo(-w*0.5+borderRadius,-h*0.5)
+      c.quadraticCurveTo(-w*0.5,-h*0.5,-w*0.5,-h*0.5+borderRadius)
+      c.lineTo(-w*0.5,h*0.5-borderRadius)
+      c.quadraticCurveTo(-w*0.5,h*0.5,-w*0.5+borderRadius,h*0.5)
+      c.lineTo(w*0.5-borderRadius,h*0.5)
+      c.quadraticCurveTo(w*0.5,h*0.5,w*0.5,h*0.5-borderRadius)
+      c.lineTo(w*0.5,-h*0.5+borderRadius)
+      c.quadraticCurveTo(w*0.5,-h*0.5,w*0.5-borderRadius,-h*0.5)
+      c.lineTo(0,-h*0.5)
+      c.closePath()
+      if(stroke) c.stroke()
+      else c.fill()
+  }
+  
+  //DRAWING CIRCLES
+  draw.drawArc = function(c,rad,arcDegree,rotation,stroke){
+      c.beginPath();
+  
+      const br = degToRad(360 - rotation - arcDegree);
+      const er = degToRad(360 - rotation);
+  
+      if(arcDegree < 360){
+          const [x,y] = rotatePoint(0,0,rad,0,360-rotation-arcDegree);
+          c.moveTo(x,y); c.moveTo(0,0);
+      }
+  
+      c.arc(0,0,rad,br,er);
+  
+      if(stroke) c.stroke();
+      else c.fill();
+      c.closePath();
+  
+  }
+  
+  //DRAWING TEXT
+  
+  draw.drawText = function(c,text,font,stroke,textAlign,width,height,rotation){
+      c.font = font;
+      c.rotate(degToRad(360-rotation))
+      let x
+      if(textAlign === 'center') x = ~~(-width/2 +  0.5)
+      else if(textAlign==='left') x = 0
+      else x=~~(-width + 0.5)
+      if(stroke) c.strokeText(text,x,~~(height/3.5 + 0.5));
+      else c.fillText(text,x,~~(height/3.5 + 0.5))
+  }
+  
+  //DRAWING IMAGES
+  draw.drawImg = function(c,sprite,w,h,rotation){
+      c.rotate(degToRad(360-rotation));
+      c.drawImage(sprite,-w/2,-h/2,w,h);
+  }
+  
+  draw.drawPoly = (c,points,rotation,stroke) => {
+      if(points.length === 0 || !points) return 
+      c.rotate(degToRad(360-rotation))
+      c.beginPath()
+      c.moveTo(...points[0])
+      points.forEach(([x,y])=>c.lineTo(x,y))
+      c.closePath()
+      if(stroke) c.stroke()
+      else c.fill()
+  }
+  
+  draw.drawLine = (c,points,rotation,lineWidth)=>{
+      c.beginPath()
+      c.rotate(degToRad(360-rotation))
+      c.moveTo(...points[0])
+      points.forEach(([x,y])=>c.lineTo(x,y))
+      c.lineWidth = lineWidth
+      c.stroke()
+  }  
 
-    lght.app.prototype.visualInit = function(){
-        this.backgroundColor = this.options.background;
-        this.context = this.canvas.getContext("2d");
-    }
 
-    lght.app.prototype.renderShape = function(){
-        this.renderPositions();
-
-        this.objects.forEach(obj=>{
-            if(obj.static) obj.drawPreloader();
-            else obj.draw();
-        })
-    }
-
-    //<-------------------BASIC CANVAS STUFF---------------------->
-    //CLEARING CANVAS AND BACKGROUND COLOR
-    lght.app.prototype.clearCanvas = function(){
-        this.context.save(); 
-        this.context.clearRect(0,0,this.canvas.width,this.canvas.height); 
-        this.context.restore();
-    }
-
-    lght.app.prototype.fillBackground = function(){
-        if(this.backgroundColor!=='none'){
-            this.context.save(); 
-            this.context.fillStyle = this.backgroundColor;
-            this.context.fillRect(0,0,this.canvas.width,this.canvas.height);
-            this.context.restore();
-        }
-    }
-
-    /*POSITION INDICATOR FUNCTIONS GO HERE
-    Draw all position indicators at once to save performance from context state change*/
-    lght.app.prototype.renderPositions = ()=>{
-        this.context.save();
-        this.context.fillStyle = 'red';
-
-        this.objects.forEach(({x,y}) => {
-            this.context.beginPath()
-            this.context.arc(x,y,5,0,2*Math.PI)
-            this.context.closePath()
-            this.context.fill()
-        });
-        
-        this.context.restore();
-    }
-
-
-    /* SHAPE PRERENDERING FUNCTIONS GO HERE
-    Shape prerendering prerender shapes on canvases to save performance*/
-
-    lght.object.prototype.updateVisual = function(){
-        //If the dimension changes a new canvas have to be created
-        var max = this.findMax();
-        for(var i = 0;i<max.length;i++){
-            if(max[i]!==this.preloader.maxes[i]){
-                this.createPreloader(); return;
-            }
-        }
-
-        this.clearPreloader();
-
-        this.shapes.forEach(s=>{
-            let x = this.preloader.ox + s.x
-            let y = this.preloader.oy + s.y
-            lght.drawShape(this.preloader.context,x,y,s,)
-        })
-    }
-
-    lght.object.prototype.clearPreloader = function(){
-        this.preloader.context.clearRect(0,0,this.preloader.width,this.preloader.height);
-    }
-
-    lght.object.prototype.createPreloader = function(){
-        if(this.static){
-            this.preloader = document.createElement('canvas');
-            
-            this.preloader.maxes = this.findMax();
-
-            this.preloader.width = this.width;
-            this.preloader.height = this.height;
-
-            this.preloader.ox = this.x - this.preloader.maxes[0];
-            this.preloader.oy = this.y - this.preloader.maxes[2];
-
-
-            this.preloader.context = this.preloader.getContext('2d');
-
-            this.updateVisual();
-        }
-    }
-
-    lght.object.prototype.drawPreloader = function(){
-        if(this.preloader.width >0 && this.preloader.height > 0){
-            let x = this.preloader.maxes[0] + this.preloader.width/2;
-            let y = this.preloader.maxes[2] + this.preloader.height/2;
-             x = Math.round(x); y = Math.round(y);
-
-            lght.drawImg(this.parent.context,x,y,this.preloader,this.preloader.width,this.preloader.height,0,1);
-        }
-    }
-
-
-    //<------------------SHAPE DRAWING FUNCTION---------------->
-    lght.object.prototype.draw = function(){
-        this.shapes.forEach(s=>{
-            lght.drawShape(this.parent.context,this.x+s.x,this.y+s.y,s)
-        })
-    }
-
-    //MASTER FUNCTION
-    lght.drawShape = function(c,x,y,shape){
-        if(shape.border || shape.borderOnly){
-            this.drawShapeKind(c,shape,x,y,true,1,shape.borderColor);
-        }
-        if(!shape.borderOnly){
-            this.drawShapeKind(c,shape,x,y,false,shape.opacity,shape.color);
-        }
-    }
-
-    lght.drawShapeKind = function(c,s,x,y,stroke,opacity,color,points){
-        opacity = s.opacity * opacity;
-        x= Math.round(x); y = Math.round(y);
-
-        switch(s.kind){
-            case 'rect':
-                lght.drawRect(c, x,y, color, s.w,s.h, s.rotation, stroke, s.borderWidth,opacity); break;
-            case 'arc':
-                lght.drawArc(c, x,y, color, s.rad,s.arcDegree,s.rotation, stroke,s.borderWidth,opacity); break;
-            case 'text':
-                lght.drawText(c, x,y, color,s.text,s.font, stroke,s.borderWidth, s.textAlign,opacity); break;
-            case 'img':
-                lght.drawImg(c, x,y, s.prite, s.w,s.h,s.rotation, opacity); break;
-            default:
-                break
-        }
-    }
-
-    //DRAWING RECTANGLE
-    lght.drawRect = function(c,x,y,color,w,h,rotation,stroke,lineWidth,o){
-        c.save();
-
-        c.globalAlpha = o;
-        c.translate(x,y);
-        c.rotate((360-rotation))
-
-        if(stroke){
-            c.strokeStyle = color; c.lineWidth = lineWidth;
-            c.strokeRect(-w/2,-h/2,w,h);
-        }
-        else{
-            c.fillStyle = color; 
-            c.fillRect(-w/2,-h/2,w,h);
-        } 
-        c.restore();
-    }
-
-    //DRAWING CIRCLES
-    lght.drawArc = function(c,x,y,color,rad,arcDegree,rotation,stroke,lineWidth,o){
-        c.save();
-
-        c.globalAlpha = o;
-        c.translate(x,y);
-        c.beginPath();
-
-        var br = degToRad(360 - rotation - arcDegree);
-        var er = degToRad(360 - rotation);
-
-        if(arcDegree < 360){
-        var pt = rotatePoint(0,0,rad,0,360-rotation-arcDegree);
-        c.moveTo(pt[0],pt[1]); c.moveTo(0,0);
-        }
-
-        c.arc(0,0,rad,br,er);
-
-        if(stroke){
-            c.strokeStyle = color; c.lineWidth = lineWidth;
-            c.stroke();
-        }
-        else{
-            c.fillStyle = color;
-            c.fill();
-        }
-        c.closePath();
-
-        c.restore();
-    }
-
-    //DRAWING TEXT
-
-    lght.drawText = function(c,x,y,color,text,font,stroke,lineWidth,textAlign,o){
-        c.save();
-
-        c.globalAlpha = o;
-        c.textAlign = textAlign;
-        c.font = font;
-        if(stroke){
-            c.strokeStyle = color; c.lineWidth = lineWidth;
-            c.strokeText(text,x,y);
-        }
-        else{
-            c.fillStyle = color;
-            c.fillText(text,x,y);
-        }
-
-        c.restore();
-    }
-
-    //DRAWING IMAGES
-    lght.drawImg = function(c,x,y,sprite,w,h,rotation,o){
-        c.save();
-
-        c.globalAlpha = o;
-        c.translate(x,y);
-        c.rotate(degToRad(360-rotation));
-
-        c.drawImage(sprite,-w/2,-h/2,w,h);
-
-        c.restore();
-    }
-    return lght
-}
+export default draw

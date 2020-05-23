@@ -73,7 +73,7 @@ const Controller = async (canvasref,canvasstatic,token,userid,CopyLink,LeaveGame
                   let newAnnoucements = model.feed.slice(oldModel.feed.length)
                   let newDirectives = model.directives.slice(oldModel.directives.length)
                   const players = model.players.map(e=>e.username)
-                  view.updateLeaderboard(players,model.players.map(e=>e.cards.length),model.players.map(e=>(e.userid)?e.point:undefined))
+                  view.updateLeaderboard(players,model.players.map(e=>e.cards.length),model.players.map(e=>(e.userid)?e.point:undefined),(model.gameMode.match(/Casual/))&&model.players.map(e=>e.gameWon))
                   if(newAnnoucements.length) newAnnoucements.forEach(message=>view.addToAnnoucementQueue(message,'black',500))
                   if(newDirectives.length){
                         for(let [code,user,otherinfo] of newDirectives){
@@ -126,7 +126,7 @@ const Controller = async (canvasref,canvasstatic,token,userid,CopyLink,LeaveGame
             else{
                   const gameMode = model.gameMode
                   const players = model.players.map(e=>e.username)
-                  view.updateLeaderboard(players,model.players.map(e=>e.cards.length),model.players.map(e=>(e.userid)?e.point:undefined))
+                  view.updateLeaderboard(players,model.players.map(e=>e.cards.length),model.players.map(e=>(e.userid)?e.point:undefined),(model.gameMode.match(/Casual/))&&model.players.map(e=>e.gameWon))
                   view.updateCards(sortDeck(model.players[userid].cards,model.currentTopCard))
                   if(model.onTurn>=0)view.updateTurnIndicator(model.onTurn)
                   view.createPlayDeck(model.currentTopCard)

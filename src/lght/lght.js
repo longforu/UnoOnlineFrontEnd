@@ -3,120 +3,13 @@
 //LIGHT LIBRARY IS DEVELOPED BY LONG TRAN
 //COPYRIGHT 2020, ALL RIGHTS RESERVED
 
-import {getByDotNotation, changeByDotNotation , mergeDefaultPropertyObject, findDistance2Point, findIntersection, rotatePoint, degToRad, findAngle2Point ,findClosestPoint, calculateRotatePoint, radToDeg} from './util/util'
-
+import {getByDotNotation, changeByDotNotation , mergeDefaultPropertyObject, findDistance2Point, findIntersection, rotatePoint, degToRad, findAngle2Point ,findClosestPoint, calculateRotatePoint, radToDeg, mobileCheck, cloneDeep, compareDifferentArray} from './modules/util.js'
+import config from './modules/config.js'
+import draw from './modules/draw.js'
+import ease from './modules/ease.js'
+import _ from 'lodash'
 let lght = {};
-
-//Config
-lght.inputReference = {};
-lght.inputReference.movementIndex = 
-    ['w','a','s','d','ArrowUp','ArrowLeft','ArrowDown','ArrowRight'];
-
-lght.inputReference.coeffIndex = 
-    [[0,-1],[-1,0],[0,1],[1,0],[0,-1],[-1,0],[0,1],[1,0]];
-
-lght.defaultAppConfig = {
-    initFunctions:["visualInit",'mouseInputInit'],
-    animateFunctions:["animate","update","render"],
-    lastFrame:undefined,
-    constantRender:true,
-    background:"black",
-    pixelDensity:1,
-    eventListeners:[],
-    eventListenersFunction:[]
-}
-
-lght.defaultObjectProps = {
-    shapes:[],
-    animations:[],
-    behaviors:[],
-    behaviorFuncs:[],
-    behaviorQueue:[],
-    hoverEvents:[],
-    animationCount:0,
-    initFunctions:["createPreloader"],
-    static:true,
-    x:0,y:0,
-    rotation:0, 
-    positionIndicator:false,
-    display:true,opacity:1,
-    mouseUpEvent:[],mouseDownEvent:[],mouseMoveEvent:[],
-    zIndex:0,
-    alignX:false,
-    alignDirectionX:'right',
-    alignMarginX:5,
-    alignY:false,
-    alignDirectionY:'top',
-    alignMarginY:5
-}
-
-lght.defaultStorageProps = {
-    spacing:0,
-    direction:'row',
-    model:[],
-    margin:0
-}
-
-lght.defaultAdvanceStorageProps = {
-    paddingTop:10,
-    paddingBottom:10,
-    paddingLeft:10,
-    paddingRight:10,
-    backgroundFunction:null
-}
-
-lght.defaultShapeOptions = {
-    kind:"rect",
-    animations:[],
-    hoverEvents:[],
-    animationCount:0,
-    x:0,y:0,rotation:0,scaleX:1,scaleY:1,
-    color:"black",display:true,
-    lineWidth:1, opacity:1,
-    borderColor:'yellow',
-    borderWidth:10,
-    border:false, borderOnly:false,
-    shadow:null,mouseUpEvent:[],mouseDownEvent:[],mouseMoveEvent:[]
-}
-
-lght.defaultRectOptions = {
-    w:0,h:0,clip:false,
-    clipImageLink:null,clipCanvas:null,
-    clipSpriteSheetX:null,clipSpriteSheetY:null,
-    spriteLengthX:null,spriteLengthY:null
-}
-
-lght.defaultArcOptions = {
-    rad:0, arcDegree:360,
-}
-
-lght.defaultTextOptions = {
-    textAlign:'center',
-    fontFamily:'Arial Bold',
-    fontSize:10,
-    text:'Hello World',
-    fontBackwardCompatibility:undefined
-}
-
-lght.defaultImgOptions = {
-    spriteLink:null,
-    drawWidth:null,drawHeight:null,
-    loadedFunction:undefined
-}
-
-lght.defaultPolyOptions = {
-    points:[],
-    specialPolygon:false,
-    numberOfSide:0,
-    radius:10,
-    clip:false,
-    clipImageLink:null
-}
-
-lght.defaultLineOptions = {
-    points:[]
-}
-
+  
 //Main
 lght.apps = [];
 
@@ -139,22 +32,207 @@ lght.gameloop.loop = (time)=>{
     }
 }
 
-
-
 lght.gameloop.loop();
 
-lght.app = function(elem,options) {
+lght.game = class{
+    constructor(elem,option={}){
+        this.divElement = elem
+        this.layers = []
+        this.elements = []
+        this.doms = []
+        mergeDefaultPropertyObject(option,config.defaultGameConfig,this)
+        window.addEventListener('resize',()=>{if(!this.killed) this.layers.forEach((e,i)=>{
+            e.canvas.width = this.divElement.clientWidth * this.pixelDensity
+            e.canvas.height = this.divElement.clientHeight*this.pixelDensity
+            if(!e.options.constantRender) e.refresh()
+            e.drawEverything()
+        })})
+        this.addLayer({constantRender:false}).addLayer().addLayer({constantRender:false})
+        if(option.backgroundColor) this.setBackground(option.backgroundColor)
+        
+    }
+    removeLayer(index){this.layers.splice(index,1).kill()}
+    addElement(option,index=this.elements.length){
+        const element = new lght.element(option,this);
+        this.doms.push(element)
+        this.elements.splice(index,0,element.element)
+        return element
+    }
+    addLayer(option,index = this.layers.length){
+        let canvas = this.addElement({type:'canvas',style:{position:'absolute',width:'100%',height:'100%',left:'0px',top:'0px',backgroundColor:'transparent'}}).element
+        canvas.width = this.divElement.clientWidth * this.pixelDensity
+        canvas.height = this.divElement.clientHeight * this.pixelDensity
+        let opt = {pixelDensity:this.pixelDensity}
+        if(option) opt = {...opt,...option}
+        this.layers.splice(index,0,new lght.app(canvas,opt,this.divElement))
+        this.resetZIndex()
+        return this
+    }
+
+    resetZIndex(){
+        this.elements.forEach((e,i)=>{
+            e.style.zIndex = e.zIndex || i
+        })
+    }
+
+    loadLayer(layer,index = this.layers.length-1){
+        
+    }
+    replaceAndLoad(index,layer){
+
+    }
+    kill(){
+        this.killed = true
+        this.layers.forEach(i=>i.kill())
+        this.dom.forEeach(i=>i.kill())
+    }
+    setBackground = color=>{
+        this.layers[0].backgroundColor = color
+        this.layers[0].refresh()
+    }
+}
+
+//layer is an object with 2 thing: the option for game, and the objects option of the app gameOption objectOption
+
+lght.coordinate = class {
+    constructor(option,element){
+        mergeDefaultPropertyObject(option,config.defaultCoordinateConfig,this)
+        this.coordinateElement = element;
+    }
+    translateToRealPixel = (num,extraInfo)=>{
+        if(num.match(/%/)) return (parseInt(num.split('').filter(e=>e!=='%').join(''))/100) * extraInfo
+        return parseInt(num)
+    }
+    get parentWidth(){
+        return this.coordinateElement.width || this.coordinateElement.clientWidth
+    }
+    get parentHeight(){
+        return this.coordinateElement.height || this.coordinateElement.clientHeight
+    }
+    get posX(){
+        if(this.hook && typeof this.hookObject.posX === 'number') return this.hookObject.posX + this.x
+        if(this.hook && typeof this.hookFunction().posX === 'number') return this.hookFunction().posX + this.x
+        if(this.alignX){
+            let base
+            if(this.alignDirectionX === 'left') base = 0
+            else if(this.alignDirectionX === 'right') base = this.parentWidth
+            else base = this.parentWidth/2
+            const coeff = (this.alignDirectionX === 'left' || this.alignDirectionX === 'center')?1:-1
+            return base + coeff*(this.alignMarginX)
+        }
+        if(typeof this.x === 'number') return this.x
+        const arr = this.x.split(' ')
+        if(arr.length === 1) return this.translateToRealPixel(arr[0],this.parentWidth)
+        else{
+            let i = 0
+            while(i<arr.length){
+                if(arr[i] === '+' || arr[i] === '-'){
+                    const coeff = (arr[i] === '+') ? 1 : -1
+                    arr[i] = this.translateToRealPixel(arr.splice(i+1,1),this.parentWidth) + coeff*this.translateToRealPixel(arr.splice(i-1,1),this.parentWidth)
+                }
+                else i++
+            }
+        }
+        return arr[0]
+    }
+    
+    get posY(){
+        if(this.hook && typeof this.hookObject.posY === 'number') return this.hookObject.posY + this.y
+        if(this.hook && typeof this.hookFunction().posY === 'number') return this.hookFunction().posY + this.y
+        if(this.alignY){
+            let base
+            if(this.alignDirectionY === 'top') base = 0
+            else if(this.alignDirectionY==='bottom') base = this.parentHeight
+            else base = this.parentHeight/2
+            const coeff = (this.alignDirectionY==='top' || this.alignDirectionY==='center')?1:-1
+            return base + coeff*( this.alignMarginY)
+        }
+        if(typeof this.y === 'number') return this.y
+        const arr = this.y.split(' ')
+        if(arr.length === 1) return this.translateToRealPixel(arr[0],this.parentHeight)
+        else{
+            let i = 0
+            while(i<arr.length){
+                if(arr[i] === '+' || arr[i] === '-'){
+                    const coeff = (arr[i] === '+') ? 1 : -1
+                    arr[i] = this.translateToRealPixel(arr.splice(i+1,1),this.parentHeight) + coeff*this.translateToRealPixel(arr.splice(i-1,1),this.parentHeight)
+                }
+                else i++
+            }
+        }
+        return arr[0]
+    }
+}
+
+lght.element = class extends lght.coordinate{
+    constructor(option,parent){
+        super(option,parent.divElement)
+        mergeDefaultPropertyObject(option,config.defaultDomConfig,this)
+        this.element = document.createElement(this.type)
+        this.parent = parent
+        this.style = {...config.defaultStyleConfig}
+        if(option.style) for(let prop in option.style) (this.style[prop] = option.style[prop])
+        this.parseStyle()
+        this.parent.divElement.appendChild(this.element)
+    }
+
+    parseStyle(){
+        this.element.style.left = `${this.posX}px`
+        this.element.style.top = `${this.posY}px`
+        for(let prop in this.style)(this.element.style[prop]=this.style[prop])
+    }
+    kill(){
+        this.element.remove()
+        const index = lght.gameloop.apps.indexOf(this)
+        lght.gameloop.apps.splice(index,1)
+        lght.gameloop.list.splice(index,1)
+    }
+    addAnimation(value,time,getter,setter,identifier,callback){
+        if(identifier) while(this.animationIdentifier.findIndex((e,i)=>e===identifier&&this.animations[i]) !== -1) this.animations[this.animationIdentifier.findIndex((e,i)=>e===identifier&&this.animations[i])] = false
+        this.animations.push(true)
+        this.animationIdentifier.push(identifier)
+        const id = this.animationCount
+        this.animationCount++
+        const change = (value - getter()) / (time / (1000/60))
+        const iv = setInterval(()=>{
+            if(this.killed || !this.animations[id]) return cancelEverything()
+            const newValue = getter() + change
+            if(change > 0 && newValue > value) return
+            if(change < 0 && newValue < value) return
+            setter(newValue)
+        },1000/60)
+        const to = setTimeout(()=>{
+            if(this.killed || !this.animations[id]) return cancelEverything()
+            setter(value)
+            if (callback) callback()
+            cancelEverything()
+        },time)
+
+        const cancelEverything = ()=>{
+            clearTimeout(to)
+            clearInterval(iv)
+            this.animations[id] = false
+        }
+        return id;
+    }
+    cancelAnimation=(id)=>this.animations[id]=false
+}
+
+lght.app = function(elem,options,parentElement) {
 
     this.options = {};
-    mergeDefaultPropertyObject(options,lght.defaultAppConfig,this.options)        
+    mergeDefaultPropertyObject(options,config.defaultAppConfig,this.options)        
     this.canvas = elem;
+    this.eventElement= parentElement || this.canvas
     this.eventListeners = []
     this.eventListenersFunction = []
     this.options.initFunctions.forEach((e)=>this[e]())
     
     this.objects = []
+    this.batchQueue = []
+    this.initiated = false
     this.index = lght.gameloop.list.length
-    lght.gameloop.list.push((this.options.constantRender)?this.turnFunctions:()=>{})
+    lght.gameloop.list.push((this.options.constantRender || this.options.batchRender)?this.turnFunctions:()=>{})
     lght.apps.push(this);
 }
 
@@ -165,11 +243,11 @@ lght.app.prototype.turnFunctions = (obj)=>{
 lght.app.prototype.addEventListener =function(event,func){
     this.eventListeners.push(event)
     this.eventListenersFunction.push(func)
-    this.canvas.addEventListener(event,func)
+    this.eventElement.addEventListener(event,func)
 }
 
 lght.app.prototype.removeEventListenr = function(){
-    this.eventListeners.forEach((e,i)=>this.canvas.removeEventListener(e,this.eventListenersFunction[i]))
+    this.eventListeners.forEach((e,i)=>this.eventElement.removeEventListener(e,this.eventListenersFunction[i]))
 }
 
 lght.app.prototype.kill = function(){
@@ -204,29 +282,28 @@ lght.app.prototype.translateMouseCoor = function(e){
     if(this.canvas.parentElement.scrollTop && this.canvas.style.position !== 'fixed') x+=this.canvas.parentElement.scrollTop
 	x -= this.canvas.offsetLeft;
 	y -= this.canvas.offsetTop;
-	return [x*this.pixelDensity,y*this.pixelDensity];
+	return [x*this.options.pixelDensity,y*this.options.pixelDensity];
 }
+
+lght.app.prototype.refresh = function(){this.turnFunctions(this)}
 
 //Object
 
 //TOTAL OBJECT COUNT, USED TO PRODUCE ID
 lght.objectCount = 0;
 
-lght.object = class {
+lght.object = class extends lght.coordinate{
     constructor(property,parent){
+        super(property,parent.canvas)
         lght.objectCount++
         this.id = lght.objectCount;
         this.parent = parent;
         this.parent.objects.push(this)
-        mergeDefaultPropertyObject
-        (property,lght.defaultObjectProps,this);    
-        this.initFunctions.forEach((e)=>this[e]())        
         this.name = (property.objectName)?property.objectName:`Object ${this.id}`
-    }
-
-    translateToRealPixel = (num,extraInfo)=>{
-        if(num.match(/%/)) return (parseInt(num.split('').filter(e=>e!=='%').join(''))/100) * extraInfo
-        return parseInt(num)
+        mergeDefaultPropertyObject
+        (property,config.defaultObjectProps,this);    
+        this.initFunctions.forEach((e)=>this[e]())
+        this.initBehaviors.forEach(e=>this.activateBehavior(e))        
     }
 
     changePosition(x,y){
@@ -244,9 +321,12 @@ lght.object = class {
             }
             else this.y = y
         }
+        if(this.static) this.updateVisual()
     }
 
     get posX(){
+        if(this.hook && typeof this.hookObject.posX === 'number') return this.hookObject.posX + this.x
+        if(this.hook && typeof this.hookFunction().posX === 'number') return this.hookFunction().posX + this.x
         if(this.alignX){
             let base
             if(this.alignDirectionX === 'left') base = 0
@@ -272,6 +352,8 @@ lght.object = class {
     }
     
     get posY(){
+        if(this.hook && typeof this.hookObject.posY === 'number') return this.hookObject.posY + this.y
+        if(this.hook && typeof this.hookFunction().posY === 'number') return this.hookFunction().posY + this.y
         if(this.alignY){
             let base
             if(this.alignDirectionY === 'top') base = 0
@@ -352,7 +434,7 @@ lght.app.prototype.useTemplate = (name,model)=> lght.templates[lght.templateName
 lght.storage = class extends lght.object{
     constructor(property,parent){
         super(property,parent)
-        mergeDefaultPropertyObject(property,lght.defaultStorageProps,this)
+        mergeDefaultPropertyObject(property,config.defaultStorageProps,this)
         this.storageShapes = []
         this.model = property.model || []
         this.elementFunction = property.elementFunction || null
@@ -377,7 +459,6 @@ lght.storage = class extends lght.object{
                 return h*this.model.length + this.spacing*(this.model.length-1)
             default:
                 return 0
-                break;
         }
     }
     updateToModel(){
@@ -428,7 +509,7 @@ lght.storage = class extends lght.object{
 lght.advanceStorage = class extends lght.storage{
     constructor(property,parent){
         super(property,parent)
-        mergeDefaultPropertyObject(property,lght.defaultAdvanceStorageProps,this)
+        mergeDefaultPropertyObject(property,config.defaultAdvanceStorageProps,this)
         this.updateToModel()
     }
 
@@ -459,6 +540,8 @@ lght.advanceStorage = class extends lght.storage{
 lght.spriteLinkReference = []
 lght.spriteImageReference = []
 lght.funcLists = []
+lght.directoryPreset = ''
+lght.fileTypePreset = ''
 
 lght.sprite = (link,func)=> {
     const index = lght.spriteLinkReference.indexOf(link)
@@ -476,12 +559,16 @@ lght.sprite = (link,func)=> {
         }
         lght.funcLists[id] = []
         lght.funcLists[id].push(func)
-        image.src = link
+        image.src = `${lght.directoryPreset}${link}${lght.fileTypePreset}`
         lght.spriteLinkReference.push(link)
         lght.spriteImageReference.push(image)
         return image
     }
 }
+
+lght.awaitImage = url => new Promise(r=>{
+    const image = lght.sprite(url,()=>{r(image)})
+  })
 
 lght.sound = class{
     constructor(link,loop){
@@ -563,6 +650,7 @@ lght.addComponent = (property) => new lght.component(property)
 lght.classes = {}
 lght.addClass = (name,options)=>lght.classes[name] = options
 
+let shapeCount = 0
 lght.shape = class {
     constructor (property,parent) {
         if(property.class) for(let className of property.class.split(' ')) for(let attr in lght.classes[className] || {}){
@@ -573,7 +661,9 @@ lght.shape = class {
         this.parent = parent;
         this.parent.shapes.push(this);
         mergeDefaultPropertyObject
-        (property,lght.defaultShapeOptions,this);
+        (property,config.defaultShapeOptions,this); 
+        this.initBehaviors.forEach(e=>this.activateBehavior(e)) 
+        this.name = property.name || `Shape${shapeCount++}`       
     }
 
     kill (){
@@ -584,11 +674,11 @@ lght.shape = class {
     }
 
     get absoluteX(){
-        return this.x + this.parent.posX
+        return (this.x*this.trueScale*this.scaleX + this.parent.posX)
     }
 
     get absoluteY(){
-        return this.y + this.parent.posY
+        return (this.y*this.trueScale*this.scaleY + this.parent.posY)
     }
 
     get hasBorder(){
@@ -596,12 +686,14 @@ lght.shape = class {
     }
 
     get width(){
-        return (((this.hasBorder)?(this.w + this.borderWidth):this.w))*this.scaleX
+        return (((this.hasBorder)?(this.w + this.borderWidth):this.w))*this.trueScale*this.scaleX
     }
 
     get height(){
-        return ((this.hasBorder)?this.h + this.borderWidth:this.h)*this.scaleY
+        return ((this.hasBorder)?this.h + this.borderWidth:this.h)*this.trueScale*this.scaleY
     }
+
+    get trueScale(){return this.aScale*this.parent.scale}
 
     get outOfBound(){
         let [minX,maxX,minY,maxY] = this.findMax();
@@ -702,11 +794,21 @@ lght.shape = class {
 lght.rect = class extends lght.shape{
     constructor (property,parent){
         super(property,parent)
-        mergeDefaultPropertyObject(property,lght.defaultRectOptions,this)
+        mergeDefaultPropertyObject(property,config.defaultRectOptions,this)
     }
 
     findVertex(){
         let reference = [[1,-1],[-1,-1],[-1,1],[1,1]]
+        let result = []
+        reference.forEach(([rx,ry])=>{
+            let nx = this.absoluteX + 0.5*this.width*rx
+            let ny = this.absoluteY + 0.5*this.height*ry
+            result.push(rotatePoint(this.absoluteX,this.absoluteY,nx,ny,this.rotation))
+        })
+        return result
+    }
+    findMidpoint(){
+        let reference = [[0,-1],[-1,0],[0,1],[1,0]]
         let result = []
         reference.forEach(([rx,ry])=>{
             let nx = this.absoluteX + 0.5*this.width*rx
@@ -720,11 +822,11 @@ lght.rect = class extends lght.shape{
 lght.arc = class extends lght.shape{
     constructor (property,parent){
         super(property,parent)
-        mergeDefaultPropertyObject(property,lght.defaultArcOptions,this)
+        mergeDefaultPropertyObject(property,config.defaultArcOptions,this)
     }
 
     get radius(){
-        return (this.hasBorder)?this.rad + this.borderWidth : this.rad
+        return ((this.hasBorder)?this.rad + this.borderWidth : this.rad)*this.trueScale
     }
 
     get minAngle(){
@@ -779,7 +881,7 @@ lght.arc = class extends lght.shape{
         ]
     }
 
-    fidnSides(){
+    findSides(){
         if(this.arcDegree === 360) return false
         return [
             [this.absoluteX,this.absoluteY,this.absoluteX+Math.cos(this.minRadAngle)*this.radius,this.absoluteY-Math.sin(this.minRadAngle)*this.radius],
@@ -835,7 +937,7 @@ lght.arc = class extends lght.shape{
 lght.roundedRectangle = class extends lght.rect{
     constructor(property,parent){
         super(property,parent)
-        this.borderRadius = (property.borderRadius) || 0
+        this.borderRadius = (property.borderRadius*this.trueScale) || 0
         if(this.clip){
             if(property.clipCanvas){
                 this.clipImage = property.clipCanvas;
@@ -865,7 +967,7 @@ lght.roundedRectangle = class extends lght.rect{
 lght.poly = class extends lght.shape{
     constructor(property,parent){
         super(property,parent)
-        mergeDefaultPropertyObject(property,lght.defaultPolyOptions,this)
+        mergeDefaultPropertyObject(property,config.defaultPolyOptions,this)
         if(this.clip){
             this.clipImage = lght.sprite(this.clipImageLink,()=>{
                 this.parent.updateVisual()
@@ -879,13 +981,17 @@ lght.poly = class extends lght.shape{
     }
 
     get polyPoints(){
-        if(!this.specialPolygon) return this.points
+        let result = []
+        if(!this.specialPolygon) result = this.points
+        else{
         const radiusCoefficient = 360/this.numberOfSide
-        const result = []
         for(let i = 0;i<this.numberOfSide;i++){
             result.push(calculateRotatePoint(0,0,radiusCoefficient*i,this.radius))
         }
-        return result
+        }
+        const angleArray = result.map(([x,y])=>findAngle2Point(this.x,this.y,x,y))
+        const distanceArray = result.map(([x,y])=>findDistance2Point(this.x,this.y,x,y)*this.trueScale)
+        return angleArray.map((angle,i)=>calculateRotatePoint(this.x,this.y,angle,distanceArray[i]))
     }  
 
     get width(){
@@ -910,11 +1016,14 @@ lght.poly = class extends lght.shape{
 lght.line = class extends lght.shape{
     constructor(property,parent){
         super(property,parent)
-        mergeDefaultPropertyObject(property,lght.defaultLineOptions,this)
+        mergeDefaultPropertyObject(property,config.defaultLineOptions,this)
     }
 
     get rotatedPoints(){
-        return this.points.map(([x,y])=>(rotatePoint(this.absoluteX,this.absoluteY,x+this.absoluteX,y+this.absoluteY,this.rotation)))
+        const result =  this.points.map(([x,y])=>(rotatePoint(this.absoluteX,this.absoluteY,x+this.absoluteX,y+this.absoluteY,this.rotation)))
+        const angleArray = result.map(([x,y])=>findAngle2Point(this.absoluteX,this.absoluteY,x,y))
+        const distanceArray = result.map(([x,y])=>findDistance2Point(this.absoluteX,this.absoluteY,x,y)*this.trueScale)
+        return angleArray.map((angle,i)=>calculateRotatePoint(this.absoluteX,this.absoluteY,angle,distanceArray[i]))
     }
 
     findVertex(){
@@ -951,12 +1060,12 @@ lght.line = class extends lght.shape{
 lght.text = class extends lght.shape{
     constructor (property,parent){
         super(property,parent)
-        mergeDefaultPropertyObject(property,lght.defaultTextOptions,this)
+        mergeDefaultPropertyObject(property,config.defaultTextOptions,this)
         if(property.font) this.fontBackwardCompatibility = property.font
     }
     
     get font(){
-        return this.fontBackwardCompatibility || `${this.fontSize}px ${this.fontFamily}`
+        return this.fontBackwardCompatibility || `${this.fontSize*this.trueScale}px ${this.fontFamily}`
     }
 
     get textSize(){
@@ -966,7 +1075,7 @@ lght.text = class extends lght.shape{
         var width = c.measureText(this.text).width;
         var height = c.measureText('gM').width;
         c.restore();
-        return [width,height];
+        return [width*this.trueScale,height*this.trueScale];
     }
 
     get w(){
@@ -998,7 +1107,7 @@ lght.text = class extends lght.shape{
 lght.img = class extends lght.shape{
     constructor (property,parent){
         super(property,parent)
-        mergeDefaultPropertyObject(property,lght.defaultImgOptions,this)
+        mergeDefaultPropertyObject(property,config.defaultImgOptions,this)
         this.sprite = lght.sprite(this.spriteLink,()=>{
             if(this.loadedFunction) this.loadedFunction()
             this.parent.updateVisual()
@@ -1045,9 +1154,9 @@ lght.img = class extends lght.shape{
     var cd = true; var obj = this
     document.addEventListener('keydown',function(key){
         if(cd){
-            if(lght.inputReference.movementIndex.indexOf(key.key)!==-1){
-                obj.x += lght.inputReference.coeffIndex[lght.inputReference.movementIndex.indexOf(key.key)][0]*velocity;
-                obj.y += lght.inputReference.coeffIndex[lght.inputReference.movementIndex.indexOf(key.key)][1]*velocity;
+            if(config.inputReference.movementIndex.indexOf(key.key)!==-1){
+                obj.x += config.inputReference.coeffIndex[config.inputReference.movementIndex.indexOf(key.key)][0]*velocity;
+                obj.y += config.inputReference.coeffIndex[config.inputReference.movementIndex.indexOf(key.key)][1]*velocity;
                 obj.updateVisual();
                 if(func) func(key,obj);
                 cd = false; 
@@ -1061,11 +1170,11 @@ lght.img = class extends lght.shape{
 //<--------------MOUSE INPUT GO HERE---------------------->
 
 lght.app.prototype.startCursor = function(){
-    this.canvas.style.cursor = 'pointer'
+    this.eventElement.style.cursor = 'pointer'
 }
 
 lght.app.prototype.endCursor = function(){
-    this.canvas.style.cursor = 'default'
+    this.eventElement.style.cursor = 'default'
 }
 
 lght.object.prototype.enterCursorEvent = function(){
@@ -1081,7 +1190,7 @@ lght.shape.prototype.enterCursorEvent = function(){
 }
 
 lght.app.prototype.attachEvent = function(event,func){
-    const mobile = window.mobileCheck()
+    const mobile = mobileCheck()
     let trueEvent = event
     if(mobile){
         switch(trueEvent){
@@ -1100,7 +1209,7 @@ lght.app.prototype.attachEvent = function(event,func){
     }
     this.addEventListener(trueEvent,(e)=>{
         if(this.killed) return 
-        if(window.mobileCheck()){
+        if(mobileCheck()){
             Array.from(e.changedTouches).forEach(touch=>{
                 const [x,y] = this.translateMouseCoor(touch)
                 func(x,y)
@@ -1171,6 +1280,7 @@ lght.object.prototype.makeDraggable = function (func,funcDone) {
     this.parent.attachEvent('mousemove', (...c) => {
         if(c[0] < 0 || c[0] >this.parent.canvas.width || c[1] < 0 || c[1] > this.parent.canvas.height) obj.onDrag = false
         if(obj.onDrag){
+            console.log(performance.now())
             this.changePosition(c[0] - rx,c[1] - ry)
             if(typeof func == 'function') func(obj);
         }
@@ -1225,9 +1335,9 @@ lght.object.prototype.attachQuickMovement = function (velocity,cooldown,func) {
     var cd = true; var obj = this
     document.addEventListener('keydown',function(key){
         if(cd){
-            if(lght.inputReference.movementIndex.indexOf(key.key)!==-1){
-                obj.x += lght.inputReference.coeffIndex[lght.inputReference.movementIndex.indexOf(key.key)][0]*velocity;
-                obj.y += lght.inputReference.coeffIndex[lght.inputReference.movementIndex.indexOf(key.key)][1]*velocity;
+            if(config.inputReference.movementIndex.indexOf(key.key)!==-1){
+                obj.x += config.inputReference.coeffIndex[config.inputReference.movementIndex.indexOf(key.key)][0]*velocity;
+                obj.y += config.inputReference.coeffIndex[config.inputReference.movementIndex.indexOf(key.key)][1]*velocity;
                 obj.updateVisual();
                 if(func) func(key,obj);
                 cd = false; 
@@ -1299,32 +1409,46 @@ lght.app.prototype.animate = function() {
     }
 }
 
-const addAnimation = function(property,value,time,func){
+const changeAnimating = function(bool){
+    if(this.updateVisual) return this.updateVisual()
+    return this.parent.updateVisual()
+    if(typeof this.animating === 'number') this.animating = (bool)?1:0
+    else this.parent.animating = (bool)?1:0
+}
+
+const addAnimation = function(property,v,time,e,resetWhenCancel,func){
     this.animationCount++;
     let id = this.animationCount;
+    const initialValue = getByDotNotation(property,this)
+    const value = ()=>{
+        switch(typeof v){
+            case 'number': return v;
+            case 'function': return v();
+            case 'string':
+                if(v.match(/%/)) return initialValue * (1+parseInt(v)/100)
+                else return initialValue + parseInt(v)
+            default:
+                throw Error("Getter type not supported")
+        }
+    }
 
     let timeout = setTimeout(()=>{
-        changeByDotNotation(property,this,value)
         this.cancelAnimation(id)
-        if(this.parent.static !== undefined) this.parent.static = true
-        else this.static = true
+        changeByDotNotation(property,this,value())
         if(this.updateVisual) this.updateVisual()
-        else this.parent.updateVisual()
+        else if(this.parent.updateVisual) this.parent.updateVisual()
         if(func) func();
     },time)
 
     const alreadyAnimated = this.animations.find((animation)=>animation[0] === property)
-    if(alreadyAnimated){
-        this.cancelAnimation(alreadyAnimated[6])
-    }
-    if(this.parent.static !== undefined) this.parent.static = false
-    else this.static = false
-    this.animations.push([property,value,getByDotNotation(property,this),time,timeout,func,id]);
+    if(alreadyAnimated) this.cancelAnimation(alreadyAnimated[6])
+    this.changeAnimating(true)
+    this.animations.push([property,value,getByDotNotation(property,this),time,timeout,func,id,e,resetWhenCancel,lght.frameTime]);
     return this;
 }
 
-const awaitAnimation = function(property,value,time){
-    return new Promise(r=>this.addAnimation(property,value,time,r))
+const awaitAnimation = function(...args){
+    return new Promise(r=>this.addAnimation(...args,r))
 }
 
 const cancelAnimation = function(){
@@ -1334,13 +1458,18 @@ const cancelAnimation = function(){
         if(!animation) return false
         clearTimeout(animation[4])
         this.animations.splice(index,1)
+        this.changeAnimating(false)
+        if(animation[8]) changeByDotNotation(animation[0],this,animation[2])
     }
 }
 
 const animate = function (time){
     let obj = this
     this.animations.forEach(animation=>{
-        let [property,value,init,timeUp] = animation
+        let [property,v,init,timeUp,timeout,func,id,e,reset,initTime] = animation
+        const value = v()
+        this.changeAnimating(true)
+        // const easeCoeff = (e)?((e.match(/Degree/))?ease[e.split(' ')[0]]((lght.frameTime - initTime)/timeUp,e.split(' ')[1]):ease[e]((lght.frameTime - initTime)/timeUp)):1
         let newValue = getByDotNotation(property,obj) + (time/timeUp)*(value-init)
         if(init < value && newValue > value) newValue = value
         if(init>value && newValue < value) newValue = value
@@ -1351,12 +1480,53 @@ const animate = function (time){
 const fadeIn = function(time){return new Promise(r=>this.addAnimation('opacity',1,time,r))}
 const fadeOut = function(time){return new Promise(r=>this.addAnimation('opacity',0,time,r))}
 
+const chainFunctionFactory = (func)=>function(){func.call(this,...arguments);return this}
+
+const triggerBehavior = async function(n){for(let b of this.behaviors.find(({name})=>name===n).behavior) await Promise.allSettled(b.map(e=>e()))}
+
+const addBehavior = chainFunctionFactory(function(name,arrayOfBehavior){return this.behaviors.push({name,behavior:arrayOfBehavior.map(e=>e.map(({kind,info})=>{
+    switch(kind){
+        case 'function': return async ()=>await info(this)
+        case 'trigger':return async ()=>await Promise.allSettled(info.map(e=>this.triggerBehavior(e)));
+        case 'animate':return async ()=>await this.awaitAnimation(...info);
+        default:throw Error('Invalid behavior type');
+    }
+}))})})
+
+let behaviorId = 0
+const createBehavior = chainFunctionFactory(function(name,fu,opts=''){
+    const func = (f)=>({kind:'function',info:async ()=>await f.call(this)})
+    const trigger = (...t)=>{
+        t.forEach(e=>{if(!this.behaviors.find(({name})=>name===e) && e!==name) this.activateBehavior(e)})
+        return ({kind:'trigger',info:t})
+    }
+    const animate = (...a)=>({kind:'animate',info:a})
+    const wait = (time)=>({kind:'function',info:()=>new Promise(r=>setTimeout(r,time))})
+    const tree = (fu)=>{const name = `treeBehavior${behaviorId++}`;this.createBehavior(name,fu);return {kind:'function',info:async (obj)=>await this.triggerBehavior(name)}}
+    const options = {}
+    opts.split(' ').forEach(e=>options[e] = true)
+    this.addBehavior(name,[...fu({func,trigger,animate,wait,tree}),(options.loop)?[trigger(name)]:[]]);
+    (options.autoTrigger&&this.triggerBehavior(name))
+})
+
+lght.behaviors = []
+lght.storeBehaviors = (name,fu,options)=>lght.behaviors.push({name,func:fu,options})
+
+const activateBehavior = chainFunctionFactory(function(n){this.createBehavior(n,lght.behaviors.find(({name})=>name===n).func,lght.behaviors.find(({name})=>name===n).options)})
+
 lght.animateFunctionReference = {
+    changeAnimating,
     animate,
     addAnimation,
     cancelAnimation,
     fadeIn,
-    fadeOut
+    fadeOut,
+    triggerBehavior,
+    addBehavior,
+    createBehavior,
+    awaitAnimation,
+    activateBehavior,
+    chainFunctionFactory
 }
 
 for(var prop in lght.animateFunctionReference){
@@ -1365,10 +1535,40 @@ for(var prop in lght.animateFunctionReference){
 }
 
 //Draw
-lght.app.prototype.render = function(){
+
+lght.app.prototype.drawEverything = function(){
     this.clearCanvas();
     this.fillBackground();
     this.renderShape();
+}
+
+lght.app.prototype.createShadowApp = function(){
+    this.shadowApp = []
+    for(let {name,cacheMax} of this.objects) this.shadowApp.push({name,cacheMax:[...cacheMax]})
+}
+
+lght.app.prototype.getMaxFromShadowApp = function(name){
+    if(!this.shadowApp) return false
+    const object = this.shadowApp.find(e=>e.name===name)
+    if(object) return object.cacheMax
+    return false
+}
+
+lght.app.prototype.getMaxFromObject = function(name){
+    const object = this.objects.find(e=>e.name===name)
+    return (object)?((object.cacheMax)?object.cacheMax:object.findMax()):false
+}
+
+lght.app.prototype.render = function(){
+    if(!this.batchRender && !this.initiated){
+        this.drawEverything()
+        this.initiated = true
+        return this.createShadowApp()
+    }
+    this.batchQueue.forEach(e=>this.renderObject(e))
+    if(this.batchQueue.length) console.log(performance.now(),this.batchQueue)
+    this.batchQueue = []
+    return this.createShadowApp()
 }
 
 lght.app.prototype.visualInit = function(){
@@ -1386,17 +1586,17 @@ lght.app.prototype.renderShape = function(){
 
 //<-------------------BASIC CANVAS STUFF---------------------->
 //CLEARING CANVAS AND BACKGROUND COLOR
-lght.app.prototype.clearCanvas = function(){
+lght.app.prototype.clearCanvas = function(x=0,y=0,w=this.canvas.width,h=this.canvas.height){
     this.context.save(); 
-    this.context.clearRect(0,0,this.canvas.width,this.canvas.height); 
+    this.context.clearRect(x,y,w,h); 
     this.context.restore();
 }
 
-lght.app.prototype.fillBackground = function(){
+lght.app.prototype.fillBackground = function(x=0,y=0,w=this.canvas.width,h=this.canvas.height){
     if(this.backgroundColor!=='none'){
         this.context.save(); 
         this.context.fillStyle = this.backgroundColor;
-        this.context.fillRect(0,0,this.canvas.width,this.canvas.height);
+        this.context.fillRect(x,y,w,h);
         this.context.restore();
     }
 }
@@ -1422,11 +1622,16 @@ lght.app.prototype.renderPositions = function(){
 /* SHAPE PRERENDERING FUNCTIONS GO HERE
 Shape prerendering prerender shapes on canvases to save performance*/
 
+lght.object.prototype.batch = function(){
+    if(!this.parent.batchQueue.includes(this.name)) this.parent.batchQueue.push(this.name)
+}
+
 lght.object.prototype.updateVisual = function(){
     //If the dimension changes a new canvas have to be created
     var max = this.findMax();
     for(var i = 0;i<max.length;i++){
         if(~~ (max[i] + 0.5)!== ~~ (this.preloader.maxes[i] + 0.5)){
+            this.cacheMax = max
             this.createPreloader(); return;
         }
     }
@@ -1434,11 +1639,12 @@ lght.object.prototype.updateVisual = function(){
     this.clearPreloader();
 
     this.shapes.forEach(s=>{
-        let x = this.preloader.ox + s.x
-        let y = this.preloader.oy + s.y
-        lght.drawShape(this.preloader.context,x,y,s,)
+        let x = this.preloader.ox + s.x*this.scale
+        let y = this.preloader.oy + s.y*this.scale
+        draw.drawShape(this.preloader.context,x,y,s,)
     })
-    if(!this.parent.options.constantRender) this.parent.turnFunctions(this.parent)
+    if(!this.parent.options.constantRender && !this.parent.options.batchRender) this.parent.turnFunctions(this.parent)
+    if(this.parent.options.batchRender) this.batch()
 }
 
 lght.object.prototype.clearPreloader = function(){
@@ -1462,193 +1668,116 @@ lght.object.prototype.createPreloader = function(){
     this.updateVisual();
 }
 
-lght.object.prototype.drawPreloader = function(){
+lght.object.prototype.drawPreloader = function(x,y,sx,sy,w,h){
     if(!this.display) return
+    if([...arguments].every((e)=>typeof e === 'number')) return this.parent.context.drawImage(this.preloader,sx,sy,w,h,x,y,w,h)
     if(this.preloader.width >0 && this.preloader.height > 0){
         let x = this.preloader.maxes[0] + this.preloader.width/2;
         let y = this.preloader.maxes[2] + this.preloader.height/2;
         x = ~~(x+0.5); y = ~~(y+0.5);
 
         this.parent.context.save()
-        this.parent.context.translate(x,y)
-        lght.drawImg(this.parent.context,this.preloader,this.preloader.width,this.preloader.height);
-        this.parent.context.restore()
+        this.parent.context.translate(~~(x+0.5),~~(y+0.5))
+        draw.drawImg(this.parent.context,this.preloader,this.preloader.width,this.preloader.height);
+        this.parent.context.restore()   
     }
+}
+
+const getVertexFromMax = (minX,maxX,minY,maxY)=>[[maxX,minY],[minX,minY],[minX,maxY],[maxX,maxY]]
+const getSideFromMax = (...args)=>getVertexFromMax(...args).map((e,i)=>(i===getVertexFromMax(...args).length-1)?[...e,...getVertexFromMax(...args)[0]]:[...e,...getVertexFromMax(...args)[i+1]])
+const getWidthHeightFromMax = (minX,maxX,minY,maxY)=>({w:(maxX-minX),h:(maxY-minY)})
+
+lght.app.prototype.findConflict = function(name){
+    const result = []
+    const [minX1,maxX1,minY1,maxY1] = this.getMaxFromObject(name)
+    this.objects.forEach((object)=>{
+        if(object.name === name) return
+        const [minX2,maxX2,minY2,maxY2] = this.getMaxFromObject(object.name)
+        if (((minX1 < minX2) && (maxX1 > maxX2) && (minY1<minY2) && (maxY1>maxY2)) || ((minX2 < minX1) && (maxX2 > maxX1) && (minY2<minY1) && (maxY2>maxY1))) return result.push(object.name)
+        const side1 = getSideFromMax(minX1,maxX1,minY1,maxY1)
+        const side2 = getSideFromMax(minX2,maxX2,minY2,maxY2)
+        for(let s1 of side1) for(let s2 of side2) if(findIntersection(s1,s2)) return result.push(object.name)
+    })
+    return result
+}
+
+lght.app.prototype.findConflictMax = function(minX1,maxX1,minY1,maxY1){
+    const result = []
+    this.objects.forEach((object)=>{
+        const [minX2,maxX2,minY2,maxY2] =  this.getMaxFromObject(object.name)
+        if (((minX1 < minX2) && (maxX1 > maxX2) && (minY1<minY2) && (maxY1>maxY2)) || ((minX2 < minX1) && (maxX2 > maxX1) && (minY2<minY1) && (maxY2>maxY1))) return result.push(object.name)
+        const side1 = getSideFromMax(minX1,maxX1,minY1,maxY1)
+        const side2 = getSideFromMax(minX2,maxX2,minY2,maxY2)
+        for(let s1 of side1) for(let s2 of side2) if(findIntersection(s1,s2)) return result.push(object.name)
+    })
+    return result
+}
+
+lght.app.prototype.clearObject = function(minX,maxX,minY,maxY,oname){
+    const {w,h} = getWidthHeightFromMax(minX,maxX,minY,maxY)
+    this.clearCanvas(minX,minY,w,h)
+    this.fillBackground(minX,minY,w,h)
+    const conflict = this.findConflictMax(minX,maxX,minY,maxY)
+    const os = [...conflict.map(e=>this.getObject(e))]
+    const objects = this.objects.filter(({name})=>os.find(e=>e.name===name && e.name !== oname))
+    objects.sort((a,b)=>a.zIndex -b.zIndex).forEach(obj=>{
+        const [minX2,maxX2,minY2,maxY2] =this.getMaxFromObject(obj.name)
+        //the min x of the subrectangle is the larger x, the max x is the smaller x
+        //same with minY and maxY
+        const minXActual = (minX>minX2)?minX:minX2
+        const maxXActual = (maxX<maxX2)?maxX:maxX2
+        const minYActual = (minY>minY2)?minY:minY2
+        const maxYActual = (maxY<maxY2)?maxY:maxY2
+        const {w,h} = getWidthHeightFromMax(minXActual,maxXActual,minYActual,maxYActual)
+        const minXAdjusted = minXActual - minX2
+        const minYAdjusted = minYActual - minY2
+        obj.drawPreloader(minXActual,minYActual,minXAdjusted,minYAdjusted,w,h)
+    })
+}
+
+lght.app.prototype.renderObject = function(name){
+    const object = this.getObject(name)
+    if(!object && this.shadowApp){
+        if(this.getMaxFromShadowApp(object.name)){
+            const [minX,maxX,minY,maxY] = this.getMaxFromShadowApp(name)
+            return this.clearObject(minX,maxX,minY,maxY)
+        }
+        return
+    }
+    if(this.shadowApp) if(this.getMaxFromShadowApp(name)) if(JSON.stringify(this.getMaxFromShadowApp(name)) !== JSON.stringify(this.getMaxFromObject(name))) this.clearObject(...this.getMaxFromShadowApp(name),name)
+    const [minX,maxX,minY,maxY] = this.getMaxFromObject(name)
+    const conflict = this.findConflict(name)
+    const {w,h} = getWidthHeightFromMax(minX,maxX,minY,maxY)
+    this.clearCanvas(minX,minY,w,h)
+    this.fillBackground(minX,minY,w,h)
+    const os = [object,...conflict.map(e=>this.getObject(e))]
+    const objects = this.objects.filter(({name})=>os.find(e=>e.name===name))
+    objects.sort((a,b)=>a.zIndex -b.zIndex).forEach(obj=>{
+        const [minX2,maxX2,minY2,maxY2] = this.getMaxFromObject(obj.name)
+        //the min x of the subrectangle is the larger x, the max x is the smaller x
+        //same with minY and maxY
+        const minXActual = (minX>minX2)?minX:minX2
+        const maxXActual = (maxX<maxX2)?maxX:maxX2
+        const minYActual = (minY>minY2)?minY:minY2
+        const maxYActual = (maxY<maxY2)?maxY:maxY2
+        const {w,h} = getWidthHeightFromMax(minXActual,maxXActual,minYActual,maxYActual)
+        const minXAdjusted = minXActual - minX2
+        const minYAdjusted = minYActual - minY2
+        obj.drawPreloader(minXActual,minYActual,minXAdjusted,minYAdjusted,w,h)
+    })
 }
 
 
 //<------------------SHAPE DRAWING FUNCTION---------------->
 lght.object.prototype.draw = function(){
     if(!this.display) return
-    if(this.static) return this.drawPreloader()
+    if(this.static && !this.animating) return this.drawPreloader()
     this.shapes.forEach(s=>{
-        lght.drawShape(this.parent.context,this.posX+s.x,this.posY+s.y,s)
+        draw.drawShape(this.parent.context,s.absoluteX,s.absoluteY,s)
     })
 }
 
 //MASTER FUNCTION
-lght.drawShape = function(c,x,y,shape){
-    x = ~~(x+0.5)
-    y = ~~(y+0.5)
-    if(!shape.display) return
-    if(shape.border || shape.borderOnly) this.drawShapeKind(c,shape,x,y,true,1,shape.borderColor,shape.shadow);
-    else if(!shape.borderOnly && !shape.border) this.drawShapeKind(c,shape,x,y,false,shape.opacity,shape.color,shape.shadow);
-    if(!shape.borderOnly) this.drawShapeKind(c,shape,x,y,false,shape.opacity,shape.color);
-}
-
-lght.drawShapeKind = function(c,s,x,y,stroke,opacity,color,shadow){
-    opacity = opacity * s.parent.opacity;
-    if(opacity == 0 || opacity <0 ) return
-
-    c.save()
-    c.globalAlpha = opacity
-    c.fillStyle = color
-    c.strokeStyle = color
-    c.lineWidth = s.borderWidth
-    c.translate(x,y)
-    c.scale(s.scaleX,s.scaleY)
-
-    if(shadow){
-        const {color,blur,offsetX,offsetY} = shadow
-        c.shadowColor = color
-        c.shadowBlur = blur
-        c.shadowOffsetX = offsetX
-        c.shadowOffsetY = offsetY
-    }
-
-    switch(s.kind){
-        case 'rect':
-            lght.drawRect(c, s.w, s.h, s.rotation, stroke); break;
-        case 'arc':
-            lght.drawArc(c, s.rad,s.arcDegree,s.rotation, stroke); break;
-        case 'text':
-            lght.drawText(c, s.text,s.font, stroke,s.textAlign ,s.w, s.h,s.rotation); break;
-        case 'img':
-            if(s.imageLoaded) lght.drawImg(c, s.sprite,s.w,s.h,s.rotation); break;
-        case 'poly':
-            lght.drawPoly(c, s.polyPoints,s.rotation, stroke); break;
-        case 'line':
-            if(stroke){
-                const points = s.points.map(((position,index)=>{
-                    const [x,y] = position
-                    if(index === 0){
-                        const angle = degToRad(findAngle2Point(...position,...s.points[index+1]))
-                        return [x-s.borderWidth*Math.cos(angle),y+s.borderWidth*Math.sin(angle)]
-                    }
-                    else if(index === s.points.length-1){
-                        const angle = degToRad(findAngle2Point(...position,...s.points[index-1]))
-                        return [x-s.borderWidth*Math.cos(angle),y+s.borderWidth*Math.sin(angle)]
-                    }
-                    else return [x,y]
-                }))
-                lght.drawLine(c,points,s.rotation,s.lineWidth+s.borderWidth);
-            }
-            else lght.drawLine(c,s.points,s.rotation,s.lineWidth); break;
-        case 'roundedRectangle':
-            lght.drawRoundedRectangle(c,s.w,s.h,s.rotation,s.borderRadius,stroke)
-            break
-        default:
-            break
-    }
-    if(s.clip && s.clipImageLoaded){
-        c.clip()
-        c.rotate(degToRad(s.rotation))
-        if(typeof s.clipSpriteSheetX === 'number' && typeof s.clipSpriteSheetY === 'number'){
-            const spriteWidth = s.clipImage.width / s.spriteLengthX
-            const spriteHeight = s.clipImage.height / s.spriteLengthY
-            const clipStartX = s.clipSpriteSheetX * spriteWidth
-            const clipStartY = s.clipSpriteSheetY * spriteHeight
-            c.drawImage(s.clipImage,clipStartX,clipStartY,spriteWidth,spriteHeight,(-s.width/2)/s.scaleX,(-s.height/2)/s.scaleY,s.width/s.scaleX,s.height/s.scaleY)
-        }
-        else c.drawImage(s.clipImage,(-s.width/2)/ s.scaleX,(-s.height/2)/ s.scaleY,s.width / s.scaleX,s.height / s.scaleY)
-    }
-
-    c.restore()
-}
-
-//DRAWING RECTANGLE
-lght.drawRect = function(c,w,h,rotation,stroke){
-    c.rotate(degToRad(360-rotation))
-    if(stroke) c.strokeRect(-w/2,-h/2,w,h);
-    else c.fillRect(-w/2,-h/2,w,h);
-}
-
-lght.drawRoundedRectangle = (c,w,h,rotation,borderRadius,stroke)=>{
-    c.rotate(degToRad(360,rotation))
-    c.beginPath()
-    c.moveTo(0,-h*0.5)
-    c.lineTo(-w*0.5+borderRadius,-h*0.5)
-    c.quadraticCurveTo(-w*0.5,-h*0.5,-w*0.5,-h*0.5+borderRadius)
-    c.lineTo(-w*0.5,h*0.5-borderRadius)
-    c.quadraticCurveTo(-w*0.5,h*0.5,-w*0.5+borderRadius,h*0.5)
-    c.lineTo(w*0.5-borderRadius,h*0.5)
-    c.quadraticCurveTo(w*0.5,h*0.5,w*0.5,h*0.5-borderRadius)
-    c.lineTo(w*0.5,-h*0.5+borderRadius)
-    c.quadraticCurveTo(w*0.5,-h*0.5,w*0.5-borderRadius,-h*0.5)
-    c.lineTo(0,-h*0.5)
-    c.closePath()
-    if(stroke) c.stroke()
-    else c.fill()
-}
-
-//DRAWING CIRCLES
-lght.drawArc = function(c,rad,arcDegree,rotation,stroke){
-    c.beginPath();
-
-    const br = degToRad(360 - rotation - arcDegree);
-    const er = degToRad(360 - rotation);
-
-    if(arcDegree < 360){
-        const [x,y] = rotatePoint(0,0,rad,0,360-rotation-arcDegree);
-        c.moveTo(x,y); c.moveTo(0,0);
-    }
-
-    c.arc(0,0,rad,br,er);
-
-    if(stroke) c.stroke();
-    else c.fill();
-    c.closePath();
-
-}
-
-//DRAWING TEXT
-
-lght.drawText = function(c,text,font,stroke,textAlign,width,height,rotation){
-    c.font = font;
-    c.rotate(degToRad(360-rotation))
-    let x
-    if(textAlign === 'center') x = ~~(-width/2 +  0.5)
-    else if(textAlign==='left') x = 0
-    else x=~~(-width + 0.5)
-    if(stroke) c.strokeText(text,x,~~(height/3.5 + 0.5));
-    else c.fillText(text,x,~~(height/3.5 + 0.5))
-}
-
-//DRAWING IMAGES
-lght.drawImg = function(c,sprite,w,h,rotation){
-    c.rotate(degToRad(360-rotation));
-    c.drawImage(sprite,-w/2,-h/2,w,h);
-}
-
-lght.drawPoly = (c,points,rotation,stroke) => {
-    if(points.length === 0 || !points) return 
-    c.rotate(degToRad(360-rotation))
-    c.beginPath()
-    c.moveTo(...points[0])
-    points.forEach(([x,y])=>c.lineTo(x,y))
-    c.closePath()
-    if(stroke) c.stroke()
-    else c.fill()
-}
-
-lght.drawLine = (c,points,rotation,lineWidth)=>{
-    c.beginPath()
-    c.rotate(degToRad(360-rotation))
-    c.moveTo(...points[0])
-    points.forEach(([x,y])=>c.lineTo(x,y))
-    c.lineWidth = lineWidth
-    c.stroke()
-}
 
 lght.object.prototype.addShape = function (property) {
     let shape = new lght[property.kind](property,this);
@@ -1667,7 +1796,8 @@ lght.app.prototype.addObject = function (property) {
 }
 
 lght.app.prototype.getObject = function(name){
-    return this.objects.find(e=>e.name===name)
+    const index =  this.objects.findIndex(e=>e.name===name)
+    if(index<0) return false; return this.objects[index]
 }
 
 lght.app.prototype.addStorage = function (property){
